@@ -6,7 +6,7 @@ biết scope + dependency, rồi đọc `PRD.md` để lấy chi tiết nghiệp
 
 | ID | Feature | Trang PRD liên quan | Dependency | SoT | Design | Plan |
 |---|---|---|---|---|---|---|
-| F0 | Foundation: Rails API + Vue skeleton, Organization/User model, JWT auth scaffold, Postgres, seed 2 org | (nền tảng, không phải 1 trang) | — | — | — | — |
+| F0 | Foundation: ~~Rails API + Vue skeleton, Postgres~~ (done, PR #1/#2) + Organization/User model, JWT auth scaffold, seed 2 org | (nền tảng, không phải 1 trang) | — | [approved](sot/F0-foundation.md) | — | — |
 | F1 | Login & session | Login | F0 | — | — | — |
 | F2 | Device list (phân trang + lọc platform/status) | Devices | F0 | — | — | — |
 | F3 | Device create/edit + validate (identifier unique trong org) | Devices | F2 | — | — | — |

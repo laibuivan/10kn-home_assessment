@@ -88,9 +88,12 @@ Layout khung (áp dụng mọi trang trừ `/login`):
 **States**
 - Idle: form trống, nút enable khi cả 2 field có giá trị hợp lệ định dạng (email regex cơ bản; không cần validate mạnh vì server sẽ trả lỗi thật).
 - Submitting: disable input + nút, spinner trong nút.
-- Error: 
-  - 401 (sai email/password) → banner: "Email hoặc mật khẩu không đúng."
-  - 403 (user không `active`) → banner: "Tài khoản đã bị vô hiệu hóa, liên hệ quản trị viên."
+- Error:
+  - 401 (sai email, sai password, **hoặc** user không `active`) → banner
+    **chung một message**: "Email hoặc mật khẩu không đúng." — quyết định có
+    chủ đích (xem `docs/sot/F0-foundation.md` §12 OQ-1): không dùng mã/message
+    riêng cho tài khoản bị vô hiệu hoá, vì làm vậy sẽ lộ ra rằng email đó tồn
+    tại và có mật khẩu đúng nhưng bị khoá (user-enumeration qua response).
   - network/500 → banner: "Không thể kết nối máy chủ, thử lại sau."
 - Success: lưu token vào store (không lưu ở nơi dễ lộ ngoài chuẩn — localStorage chấp nhận được cho bài test, nêu rõ trong DESIGN.md), redirect `/devices`.
 
