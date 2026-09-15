@@ -12,7 +12,15 @@ const testDir = defineBddConfig({
 
 export default defineConfig({
   testDir,
-  fullyParallel: true,
+  // Scenarios share one running Postgres/Rails stack (docker compose, no
+  // per-worker DB) and create fixtures straight into it via `rails runner` —
+  // there is no transactional rollback or isolation between scenarios, let
+  // alone between workers. Any scenario asserting a *global* count (e.g.
+  // F0's "running the seed script twice") is racy against other scenarios
+  // creating Organizations/Users concurrently. `workers: 1` trades suite
+  // wall-clock time for correctness, which fits a shared-mutable-DB setup.
+  fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: [['list']],
   use: {

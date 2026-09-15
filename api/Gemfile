@@ -20,6 +20,11 @@ gem "bcrypt", "~> 3.1.7"
 # JWT auth (SPA session) — see docs/design/F0-api.md
 gem "jwt"
 
+# Authorization — org-scope every resource query through a Pundit policy
+# scope instead of hand-rolling `current_organization.<assoc>` in each
+# controller (CLAUDE.md §1, docs/design/F2-api.md §5 OQ-API-1).
+gem "pundit"
+
 # Windows does not include zoneinfo files, so bundle the tzinfo-data gem
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 

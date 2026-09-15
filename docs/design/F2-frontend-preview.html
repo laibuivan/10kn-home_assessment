@@ -1,0 +1,511 @@
+<title>F2 Devices List Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* ============ TOKENS — khớp UI_UX_design.md §12, không tự đổi ============ */
+  :root {
+    --bg: #F5F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F4;
+    --border: #DCE2E8;
+    --text: #16202E;
+    --text-muted: #5B6779;
+    --text-faint: #8A93A3;
+    --accent: #146C7A;
+    --accent-strong: #0F535E;
+    --on-accent: #FFFFFF;
+    --success: #1E8E5A;
+    --success-soft: #E3F5EC;
+    --neutral-badge: #5B6779;
+    --neutral-badge-soft: #EAEDF1;
+    --danger: #B3432E;
+    --danger-soft: #FBEAE6;
+    --warning: #9C6B12;
+    --warning-soft: #FBF1DD;
+    --focus: #146C7A;
+
+    --sidebar-bg: #10222A;
+    --sidebar-bg-active: #16323C;
+    --sidebar-text: #E7EEF0;
+    --sidebar-text-muted: #8FA8AC;
+    --sidebar-border: #1D3038;
+
+    --font-display: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+      --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+      --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+      --success: #3FCB86; --success-soft: #10281E;
+      --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+      --danger: #E2796A; --danger-soft: #33191A;
+      --warning: #D9A441; --warning-soft: #2E2410;
+      --focus: #3FB6C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+    --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+    --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+    --success: #3FCB86; --success-soft: #10281E;
+    --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+    --danger: #E2796A; --danger-soft: #33191A;
+    --warning: #D9A441; --warning-soft: #2E2410;
+    --focus: #3FB6C4;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.5; }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .page { max-width: 960px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 40px; }
+
+  /* ============ page header (eyebrow/title/status pills) ============ */
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 3.4vw, 34px); margin: 6px 0 8px; text-wrap: balance; }
+  .lede { color: var(--text-muted); max-width: 62ch; font-size: 15px; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+
+  /* ============ generic pill / badge (StatusBadge) ============ */
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 100px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: var(--success-soft); }
+  .pill.ok .dot { background: var(--success); }
+  .pill.pending .dot { background: var(--text-faint); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .badge.active { color: var(--success); background: var(--success-soft); }
+  .badge.inactive { color: var(--neutral-badge); background: var(--neutral-badge-soft); }
+  .badge.retired { color: var(--danger); background: var(--danger-soft); }
+
+  /* ============ screen frame (mock browser window) ============ */
+  section.screen { display: flex; flex-direction: column; gap: 10px; }
+  .screen-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .screen-label h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+  .screen-label .ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .window { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,33,0.04); }
+  .chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .chrome .dots { display: flex; gap: 6px; flex: none; }
+  .chrome .dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .chrome .addr { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; text-align: center; }
+
+  /* ============ buttons / fields (form controls dùng chung) ============ */
+  .btn { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { color: var(--on-accent); background: var(--accent); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--surface-2); }
+  .btn-danger { color: var(--on-accent); background: var(--danger); }
+  .btn:disabled { cursor: default; opacity: 0.85; }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+  .field input, .field select, .field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; width: 100%; }
+  .field input::placeholder { color: var(--text-faint); font-family: var(--font-mono); font-size: 13px; }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: var(--surface); }
+
+  .error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
+  .warning-banner { color: var(--warning); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border)); }
+
+  /* ============ DataTable + PaginationBar ============ */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .data-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+  .table-wrap { overflow-x: auto; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); }
+  .pagination .steps { display: flex; gap: 4px; }
+  .pagination button { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+  /* ============ EmptyState / ErrorState ============ */
+  .placeholder-box { width: 100%; max-width: 420px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 30px 22px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0 auto; }
+  .placeholder-box .ic { font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); }
+  .placeholder-box strong { color: var(--text); font-weight: 600; font-size: 14px; }
+  .placeholder-box span { font-size: 12.5px; line-height: 1.5; }
+
+  /* ============ Modal (ConfirmModal/FormModal) ============ */
+  .modal-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--text) 35%, transparent); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 16px 40px rgba(15,23,33,0.2); }
+  .modal h3 { font-family: var(--font-display); font-size: 15.5px; font-weight: 600; margin: 0; }
+  .modal p { font-size: 13.5px; color: var(--text-muted); margin: 0; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ============ AppShell (Topbar + Sidebar) — dùng nguyên, chỉ đổi nav active/future ============ */
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 13px; flex: none; }
+  .brand .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+
+  .shell { display: grid; grid-template-columns: 200px 1fr; min-height: 420px; }
+  .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--sidebar-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar .brand { justify-content: flex-start; margin-bottom: 18px; padding: 0 6px; }
+  .sidebar .brand .name { color: var(--sidebar-text); }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; font-weight: 500; color: var(--sidebar-text-muted); }
+  .nav-item.active { background: var(--sidebar-bg-active); color: var(--sidebar-text); }
+  .nav-item .ic { width: 15px; text-align: center; font-family: var(--font-mono); font-size: 12px; }
+  .nav-item.future { opacity: 0.4; font-size: 12.5px; }
+  .sidebar-note { margin-top: auto; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--sidebar-text-muted); border-top: 1px solid var(--sidebar-border); padding-top: 10px; }
+
+  .shell-main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: relative; }
+  .org-pill { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 5px 11px 5px 9px; }
+  .org-pill .ic { color: var(--accent); }
+  .user-menu { position: relative; }
+  .user-btn { font: inherit; font-size: 13px; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .user-btn:hover { background: var(--surface-2); }
+  .user-dd { display: none; position: absolute; right: 0; top: calc(100% + 6px); min-width: 168px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15,23,33,0.12); padding: 5px; z-index: 5; }
+  .user-dd.open { display: block; }
+  .user-dd button { width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: none; border: none; border-radius: 6px; padding: 7px 9px; cursor: pointer; }
+  .user-dd button:hover { background: var(--surface-2); }
+  .shell-content { flex: 1; padding: 28px 24px; }
+
+  .notes { display: flex; flex-direction: column; gap: 6px; }
+  .note { font-size: 12.5px; color: var(--text-muted); display: flex; gap: 7px; align-items: flex-start; }
+  .note::before { content: "→"; color: var(--accent); flex: none; font-weight: 600; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12.5px; color: var(--text-faint); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer code, .lede code { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  @media (max-width: 640px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; overflow-x: auto; padding: 10px; }
+    .sidebar .brand, .sidebar-note { display: none; }
+  }
+</style>
+
+<!-- ============ F2-specific additions — không sửa khối <style> gốc ở trên, chỉ bổ sung class mới cần cho FilterBar/state-tabs/skeleton chưa có sẵn trong base template ============ -->
+<style>
+  .devices-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .devices-head h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+  .devices-head .hint { font-size: 12px; color: var(--text-faint); }
+
+  .filter-bar { display: flex; align-items: flex-end; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); margin-bottom: 14px; flex-wrap: wrap; }
+  .filter-bar .field { width: 160px; }
+  .filter-bar .field label { font-size: 11.5px; }
+  .filter-bar .clear-btn { margin-left: auto; }
+  .filter-bar .clear-btn[hidden] { display: none; }
+
+  .state-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; width: fit-content; margin-bottom: 16px; }
+  .state-tabs button { font: inherit; font-size: 12px; font-weight: 500; color: var(--text-muted); background: none; border: none; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+  .state-tabs button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(15,23,33,0.08); }
+
+  .skeleton-cell { display: inline-block; height: 11px; border-radius: 4px; width: 100%; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.3s ease-in-out infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton-cell { animation: none; } }
+
+  .table-overlay-wrap { position: relative; }
+  .table-loading-overlay { position: absolute; inset: 0; background: color-mix(in srgb, var(--surface) 65%, transparent); display: flex; align-items: flex-start; justify-content: center; padding-top: 36px; }
+  .table-loading-overlay .spinner { width: 20px; height: 20px; color: var(--accent); }
+
+  .table-area[hidden], .filter-bar select:disabled { display: none !important; }
+  .pagination[data-disabled="true"] button { opacity: 0.4; cursor: default; pointer-events: none; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">F2 — Device list (phân trang + lọc platform/status) · Frontend design preview</div>
+    <h1>Devices List: filter, table, pagination — đọc-only</h1>
+    <p class="lede">
+      Mockup theo <code>docs/design/F2-frontend.md</code> + <code>UI_UX_design.md</code> §4/§8/§9 —
+      route <code>/devices</code> đã tồn tại từ F0, F2 thay nội dung placeholder bằng bảng thật.
+      Dùng nhóm nút "Xem trạng thái" bên dưới để xem Loading/Empty/Error; ở trạng thái Success, filter
+      và pagination là tương tác thật trên dữ liệu mock.
+    </p>
+    <div class="status-row">
+      <span class="pill ok"><span class="dot"></span>SoT — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design DB — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design API — approved</span>
+      <span class="pill pending"><span class="dot"></span>Design Frontend — draft, xem ở đây</span>
+    </div>
+  </header>
+
+  <section class="screen">
+    <div class="screen-label">
+      <h2>Devices List (`/devices`)</h2>
+      <span class="ref">F2-frontend.md §1–§4 · DeviceListView.vue + FilterBar/DataTable/PaginationBar/EmptyState/ErrorState.vue</span>
+    </div>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <div class="addr" id="addr">localhost:5173/devices</div>
+      </div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <span class="nav-item future"><span class="ic">▢</span> Groups</span>
+          <span class="nav-item future"><span class="ic">▢</span> Policies</span>
+          <div class="sidebar-note">Groups/Policies ẩn —<br>hiện khi F5/F7 thêm route</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar">
+            <span class="org-pill"><span class="ic">◆</span> Acme Inc.</span>
+            <div class="user-menu">
+              <button class="user-btn" type="button">admin@acme.example ▾</button>
+            </div>
+          </div>
+          <div class="shell-content">
+
+            <div class="devices-head">
+              <h3>Devices</h3>
+              <span class="hint">Không có "+ Thêm Device" ở F2 — xem F2-frontend.md, SoT §3</span>
+            </div>
+
+            <div class="state-tabs" role="tablist" aria-label="Xem trạng thái demo">
+              <button type="button" class="active" data-state="success">Success</button>
+              <button type="button" data-state="loading-first">Loading (lần đầu)</button>
+              <button type="button" data-state="loading-refetch">Loading (đổi trang/filter)</button>
+              <button type="button" data-state="empty-nofilter">Empty — A1 (không filter)</button>
+              <button type="button" data-state="empty-filtered">Empty — A2 (do filter)</button>
+              <button type="button" data-state="error">Error — A11</button>
+            </div>
+
+            <!-- FilterBar — luôn hiển thị ở mọi state (kể cả Error, theo SoT §7) -->
+            <div class="filter-bar">
+              <div class="field">
+                <label for="fPlatform">Platform</label>
+                <select id="fPlatform">
+                  <option value="">Tất cả</option>
+                  <option value="ios">ios</option>
+                  <option value="android">android</option>
+                  <option value="macos">macos</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="fStatus">Status</label>
+                <select id="fStatus">
+                  <option value="">Tất cả</option>
+                  <option value="active">active</option>
+                  <option value="inactive">inactive</option>
+                  <option value="retired">retired</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-secondary clear-btn" id="clearFilterBtn" hidden>Xóa lọc</button>
+            </div>
+
+            <!-- Success -->
+            <div class="table-area" id="area-success">
+              <div class="table-overlay-wrap">
+                <div class="table-wrap">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Identifier</th><th>Name</th><th>Platform</th><th>OS Version</th><th>Status</th><th>Last seen</th>
+                      </tr>
+                    </thead>
+                    <tbody id="deviceRows"></tbody>
+                  </table>
+                </div>
+                <div class="table-loading-overlay" id="refetchOverlay" hidden><span class="spinner" aria-hidden="true"></span></div>
+              </div>
+              <div class="pagination" id="paginationBar">
+                <span id="pageSummary">Hiển thị 1–5 / 8</span>
+                <div class="steps">
+                  <button type="button" id="prevPageBtn">‹ Trước</button>
+                  <span id="pageIndicator" style="padding:4px 6px">Trang 1 / 2</span>
+                  <button type="button" id="nextPageBtn">Sau ›</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Loading — lần tải đầu (skeleton, chưa có dòng cũ) -->
+            <div class="table-area" id="area-loading-first" hidden>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr><th>Identifier</th><th>Name</th><th>Platform</th><th>OS Version</th><th>Status</th><th>Last seen</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell" style="width:60%"></span></td><td><span class="skeleton-cell" style="width:50%"></span></td><td><span class="skeleton-cell" style="width:70px"></span></td><td><span class="skeleton-cell" style="width:80%"></span></td></tr>
+                    <tr><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell" style="width:60%"></span></td><td><span class="skeleton-cell" style="width:50%"></span></td><td><span class="skeleton-cell" style="width:70px"></span></td><td><span class="skeleton-cell" style="width:80%"></span></td></tr>
+                    <tr><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell" style="width:60%"></span></td><td><span class="skeleton-cell" style="width:50%"></span></td><td><span class="skeleton-cell" style="width:70px"></span></td><td><span class="skeleton-cell" style="width:80%"></span></td></tr>
+                    <tr><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell" style="width:60%"></span></td><td><span class="skeleton-cell" style="width:50%"></span></td><td><span class="skeleton-cell" style="width:70px"></span></td><td><span class="skeleton-cell" style="width:80%"></span></td></tr>
+                    <tr><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell"></span></td><td><span class="skeleton-cell" style="width:60%"></span></td><td><span class="skeleton-cell" style="width:50%"></span></td><td><span class="skeleton-cell" style="width:70px"></span></td><td><span class="skeleton-cell" style="width:80%"></span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="hint" style="margin-top:8px">5 dòng skeleton, không có bảng cũ để giữ lại — lần tải đầu tiên của trang.</p>
+            </div>
+
+            <!-- Loading — đổi filter/trang (overlay mờ lên bảng CŨ, không xóa trắng) -->
+            <div class="table-area" id="area-loading-refetch" hidden>
+              <div class="table-overlay-wrap">
+                <div class="table-wrap">
+                  <table class="data-table">
+                    <thead><tr><th>Identifier</th><th>Name</th><th>Platform</th><th>OS Version</th><th>Status</th><th>Last seen</th></tr></thead>
+                    <tbody id="deviceRowsStale"></tbody>
+                  </table>
+                </div>
+                <div class="table-loading-overlay"><span class="spinner" aria-hidden="true"></span></div>
+              </div>
+              <div class="pagination" data-disabled="true">
+                <span>Hiển thị 1–5 / 8</span>
+                <div class="steps"><button disabled>‹ Trước</button><span style="padding:4px 6px">Trang 1 / 2</span><button disabled>Sau ›</button></div>
+              </div>
+            </div>
+
+            <!-- Empty A1 — không filter, không CTA -->
+            <div class="table-area" id="area-empty-nofilter" hidden>
+              <div class="placeholder-box">
+                <span class="ic">▣</span>
+                <strong>Không có thiết bị nào</strong>
+                <span>Organization này chưa có Device nào. F2 chưa có nút tạo mới — sẽ thêm ở F3.</span>
+              </div>
+            </div>
+
+            <!-- Empty A2 — do filter, có nút Xóa lọc -->
+            <div class="table-area" id="area-empty-filtered" hidden>
+              <div class="placeholder-box">
+                <span class="ic">▣</span>
+                <strong>Không tìm thấy thiết bị nào khớp bộ lọc</strong>
+                <span>Thử đổi hoặc xóa bộ lọc đang áp dụng.</span>
+                <button type="button" class="btn btn-secondary" id="emptyClearBtn" style="margin-top:6px">Xóa lọc</button>
+              </div>
+            </div>
+
+            <!-- Error A11 -->
+            <div class="table-area" id="area-error" hidden>
+              <div class="error-banner">
+                <span aria-hidden="true">⚠</span>
+                <span style="display:flex; flex-direction:column; gap:8px; width:100%">
+                  <span>Không tải được danh sách thiết bị.</span>
+                  <button type="button" class="btn btn-secondary" id="retryBtn" style="align-self:flex-start">Thử lại</button>
+                </span>
+              </div>
+              <p class="hint" style="margin-top:8px">Filter bar phía trên vẫn dùng được bình thường trong lúc bảng đang lỗi.</p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Không có nút "+ Thêm Device", không click-through row, không cột "⋯" — quyết định có chủ đích khớp <code>docs/sot/F2-device-list.md</code> §3, xem <code>F2-frontend.md</code> đầu file để không hiểu nhầm là thiếu sót so với mockup đầy đủ ở <code>UI_UX_design.md</code> §4.</p>
+      <p class="note">Đổi Platform/Status ở trạng thái Success lọc thật trên dữ liệu mock bên dưới (client-side, chỉ để demo — app thật gọi lại API mỗi lần đổi filter).</p>
+      <p class="note">Cột "Last seen" dòng cuối minh hoạ giá trị <code>null</code> (thiết bị chưa từng báo cáo) hiển thị "—" — xem F2-frontend.md §5 OQ-FE-5.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Nguồn: <code>docs/design/F2-frontend.md</code>, <code>UI_UX_design.md</code> §4, §8, §9</span>
+    <span>Chưa nối API thật — filter/pagination ở trên chạy trên dữ liệu mock trong chính trang preview</span>
+  </footer>
+</div>
+
+<script>
+  // ---- mock dataset (chỉ phục vụ preview, không phải data thật) ----
+  const MOCK_DEVICES = [
+    { identifier: 'IOS-0001', name: 'iPhone 14 — Sales #1',   platform: 'ios',     os: '17.4.1', status: 'active',   lastSeen: '15/09/2026 08:12' },
+    { identifier: 'AND-0002', name: 'Pixel 8 — Warehouse #3', platform: 'android', os: '14',     status: 'active',   lastSeen: '15/09/2026 07:40' },
+    { identifier: 'MAC-0003', name: 'MacBook Pro — Eng #7',   platform: 'macos',   os: '14.5',   status: 'inactive', lastSeen: '02/09/2026 18:05' },
+    { identifier: 'IOS-0004', name: 'iPad Air — Retail #2',   platform: 'ios',     os: '17.3',   status: 'retired',  lastSeen: '11/06/2026 09:00' },
+    { identifier: 'AND-0005', name: 'Galaxy S23 — Ops #4',    platform: 'android', os: '13',     status: 'active',   lastSeen: '15/09/2026 06:58' },
+    { identifier: 'MAC-0006', name: 'Mac mini — Eng #9',      platform: 'macos',   os: '14.5',   status: 'active',   lastSeen: '14/09/2026 22:11' },
+    { identifier: 'IOS-0007', name: 'iPhone SE — Support #1', platform: 'ios',     os: '16.7',   status: 'inactive', lastSeen: '30/08/2026 13:20' },
+    { identifier: 'AND-0008', name: 'Pixel 7a — Field #6',    platform: 'android', os: '14',     status: 'retired',  lastSeen: null },
+  ];
+  const PER_PAGE = 5;
+  let page = 1;
+
+  const platformSel = document.getElementById('fPlatform');
+  const statusSel = document.getElementById('fStatus');
+  const clearBtn = document.getElementById('clearFilterBtn');
+  const emptyClearBtn = document.getElementById('emptyClearBtn');
+  const rowsBody = document.getElementById('deviceRows');
+  const staleBody = document.getElementById('deviceRowsStale');
+  const pageSummary = document.getElementById('pageSummary');
+  const pageIndicator = document.getElementById('pageIndicator');
+  const prevBtn = document.getElementById('prevPageBtn');
+  const nextBtn = document.getElementById('nextPageBtn');
+  const addr = document.getElementById('addr');
+  const refetchOverlay = document.getElementById('refetchOverlay');
+
+  const badgeClass = (s) => `badge ${s}`;
+
+  function filtered() {
+    return MOCK_DEVICES.filter(d =>
+      (!platformSel.value || d.platform === platformSel.value) &&
+      (!statusSel.value || d.status === statusSel.value)
+    );
+  }
+
+  function renderRows(target, list) {
+    target.innerHTML = list.map(d => `
+      <tr>
+        <td class="mono">${d.identifier}</td>
+        <td>${d.name}</td>
+        <td>${d.platform}</td>
+        <td class="mono">${d.os}</td>
+        <td><span class="${badgeClass(d.status)}">${d.status}</span></td>
+        <td class="mono">${d.lastSeen ?? '—'}</td>
+      </tr>
+    `).join('');
+  }
+
+  function updateUrl() {
+    const params = [];
+    if (platformSel.value) params.push(`platform=${platformSel.value}`);
+    if (statusSel.value) params.push(`status=${statusSel.value}`);
+    if (page > 1) params.push(`page=${page}`);
+    addr.textContent = 'localhost:5173/devices' + (params.length ? '?' + params.join('&') : '');
+  }
+
+  function renderSuccess() {
+    const list = filtered();
+    const totalPages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+    if (page > totalPages) page = totalPages;
+    const start = (page - 1) * PER_PAGE;
+    const pageItems = list.slice(start, start + PER_PAGE);
+
+    renderRows(rowsBody, pageItems);
+    renderRows(staleBody, pageItems); // dùng lại cho state "loading-refetch" (bảng cũ giữ nguyên khi overlay bật)
+
+    const from = list.length === 0 ? 0 : start + 1;
+    const to = Math.min(start + PER_PAGE, list.length);
+    pageSummary.textContent = `Hiển thị ${from}–${to} / ${list.length}`;
+    pageIndicator.textContent = `Trang ${page} / ${totalPages}`;
+    prevBtn.disabled = page <= 1;
+    nextBtn.disabled = page >= totalPages;
+
+    clearBtn.hidden = !(platformSel.value || statusSel.value);
+    updateUrl();
+  }
+
+  platformSel.addEventListener('change', () => { page = 1; renderSuccess(); });
+  statusSel.addEventListener('change', () => { page = 1; renderSuccess(); });
+  clearBtn.addEventListener('click', () => { platformSel.value = ''; statusSel.value = ''; page = 1; renderSuccess(); });
+  emptyClearBtn?.addEventListener('click', () => { platformSel.value = ''; statusSel.value = ''; page = 1; setState('success'); });
+  prevBtn.addEventListener('click', () => { if (page > 1) { page -= 1; renderSuccess(); } });
+  nextBtn.addEventListener('click', () => { page += 1; renderSuccess(); });
+
+  // ---- state-tabs demo switcher (Success/Loading/Empty/Error) ----
+  const areas = {
+    success: document.getElementById('area-success'),
+    'loading-first': document.getElementById('area-loading-first'),
+    'loading-refetch': document.getElementById('area-loading-refetch'),
+    'empty-nofilter': document.getElementById('area-empty-nofilter'),
+    'empty-filtered': document.getElementById('area-empty-filtered'),
+    error: document.getElementById('area-error'),
+  };
+  const tabButtons = document.querySelectorAll('.state-tabs button');
+
+  function setState(key) {
+    Object.entries(areas).forEach(([k, el]) => { el.hidden = k !== key; });
+    tabButtons.forEach(b => b.classList.toggle('active', b.dataset.state === key));
+    if (key === 'success') renderSuccess();
+  }
+
+  tabButtons.forEach(btn => btn.addEventListener('click', () => setState(btn.dataset.state)));
+  document.getElementById('retryBtn')?.addEventListener('click', () => setState('loading-refetch'));
+
+  renderSuccess();
+</script>
