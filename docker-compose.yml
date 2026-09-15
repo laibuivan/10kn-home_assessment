@@ -1,0 +1,66 @@
+# Single-command local dev stack: `docker compose up --build`
+#   API    -> http://localhost:3010  (health check: /up)
+#   Web    -> http://localhost:5173
+#   DB     -> localhost:5433 (postgres/postgres)
+#
+# Host ports are non-default (3010/5433) to avoid clashing with anything else
+# already bound to 3000/5432 on your machine — override via .env if these
+# also collide (see .env.example). Container-internal ports are the Rails/PG
+# defaults (3000/5432) and unaffected by this — only host-side access moves.
+#
+# Every value below has a working default — no .env file required. Create a
+# root .env (see .env.example) only if you want to override a default.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+    ports:
+      - "${DATABASE_HOST_PORT:-5433}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      RAILS_ENV: development
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-postgres}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      DATABASE_NAME: ${DATABASE_NAME:-device_console}
+      WEB_ORIGIN: http://localhost:5173
+    ports:
+      - "${API_HOST_PORT:-3010}:3000"
+    volumes:
+      - ./api:/app
+    stdin_open: true
+    tty: true
+
+  web:
+    build: ./web
+    depends_on:
+      - api
+    environment:
+      # Browser-facing URL (calls from the host browser, not container-to-
+      # container) — must match the api host port above.
+      VITE_API_URL: http://localhost:${API_HOST_PORT:-3010}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app
+      - web-node-modules:/app/node_modules
+
+volumes:
+  db-data:
+  web-node-modules:

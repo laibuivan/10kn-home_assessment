@@ -1,0 +1,34 @@
+# PostgreSQL. Versions 9.5 and up are supported.
+#
+# Connection is driven entirely by env vars so the same config works both in
+# Docker (host: db, from docker-compose.yml) and native/mise dev (host:
+# localhost, from api/.env — see api/.env.example).
+#
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  host: <%= ENV.fetch("DATABASE_HOST", "localhost") %>
+  port: <%= ENV.fetch("DATABASE_PORT", 5432) %>
+  username: <%= ENV.fetch("DATABASE_USERNAME", "postgres") %>
+  password: <%= ENV.fetch("DATABASE_PASSWORD", "postgres") %>
+  # For details on connection pooling, see Rails configuration guide
+  # https://guides.rubyonrails.org/configuring.html#database-pooling
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+development:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME", "device_console_development") %>
+
+# Warning: The database defined as "test" will be erased and
+# re-generated from your development database when you run "rake".
+# Do not set this db to the same as development or production.
+test:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME", "device_console") %>_test
+
+# If the connection URL is provided in the special DATABASE_URL environment
+# variable, Rails will automatically merge its configuration values on top of
+# the values provided in this file.
+production:
+  <<: *default
+  database: <%= ENV.fetch("DATABASE_NAME", "device_console_production") %>
