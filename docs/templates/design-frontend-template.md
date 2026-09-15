@@ -12,6 +12,11 @@ Nguồn: `docs/design/<id>-api.md` (approved), `docs/sot/<id>-<slug>.md`,
 tuân theo), bảng "Giao diện bắt buộc" trong `PRD.md`, component/token đã có
 trong `web/src/components/`.
 
+**Preview trực quan (bắt buộc, duyệt cùng lúc với file này):**
+`docs/design/<id>-frontend-preview.html` — dựng từ
+`docs/templates/design-frontend-preview-base.html`. Không approve file `.md`
+này khi chưa xem file preview.
+
 ## 1. Route / screen breakdown
 
 | Route | Component chính | Ghi chú |

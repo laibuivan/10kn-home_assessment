@@ -32,6 +32,10 @@ Sources of truth (đọc theo thứ tự này):
    `web/` đã tồn tại) — kiểm tra đã implement đúng component/store nào ở
    UI_UX_design.md rồi, tái sử dụng thay vì tạo mới hoặc tạo trùng.
 
+**Output gồm 2 file, duyệt cùng lúc (1 gate chung — xem `docs/sdlc.md`):**
+
+### A. `docs/design/<feature-id>-frontend.md`
+
 Viết theo `docs/templates/design-frontend-template.md` → tạo
 `docs/design/<feature-id>-frontend.md`, `status: draft`, gồm:
 - Route/screen breakdown: lấy đúng route đã định trong UI_UX_design.md §2 cho
@@ -50,6 +54,25 @@ Viết theo `docs/templates/design-frontend-template.md` → tạo
 - Rủi ro / open question cần con người quyết định — bao gồm mọi chỗ SoT yêu
   cầu điều mà UI_UX_design.md chưa cover hoặc có vẻ mâu thuẫn.
 
+### B. `docs/design/<feature-id>-frontend-preview.html` — **bắt buộc**
+
+Không phải tuỳ chọn: viết `.md` xong mà chưa có file preview này thì bước
+Frontend design **chưa xong**, đừng báo "sẵn sàng approve".
+
+- Copy nguyên `docs/templates/design-frontend-preview-base.html` (đọc kỹ
+  comment hướng dẫn ở đầu file đó) → giữ nguyên khối `<style>` (token đã chốt
+  ở `UI_UX_design.md` §12 — không tự đổi màu/font), chỉ thêm/sửa phần
+  `<!-- SCREEN: ... -->` cho (các) route của feature này.
+- Route sau login → bọc trong `.shell`/`.sidebar`/`.topbar` có sẵn trong file
+  base, chỉ đổi nav-item nào `active`/`future`, không vẽ lại AppShell.
+- Thể hiện được các state chính đã liệt kê ở mục 4 (Empty/loading/error/
+  success) của file `.md` — tối thiểu tĩnh (nhiều khối cạnh nhau), lý tưởng có
+  1-2 tương tác thật (submit form, toggle) như cách `F0-frontend-preview.html`
+  đã làm — không bắt buộc nối API thật.
+- Publish qua Artifact tool để người duyệt xem trực tiếp trong chat; nhưng
+  file `.html` vẫn phải nằm trong `docs/design/` và được commit — đó mới là
+  bản duyệt chính thức.
+
 Ràng buộc:
 - **Không** viết code UI thật — chỉ mô tả trong tài liệu thiết kế (việc code
   thuộc về `slice-implementer` ở stage Implement).
@@ -62,4 +85,5 @@ Ràng buộc:
 - Nếu SoT, thiết kế API, và UI_UX_design.md mâu thuẫn nhau → báo cáo mâu thuẫn;
   không tự quyết định chọn bên nào.
 
-Kết thúc: tóm tắt thiết kế frontend đề xuất + danh sách open question.
+Kết thúc: tóm tắt thiết kế frontend đề xuất + link Artifact của bản preview đã
+publish + danh sách open question.

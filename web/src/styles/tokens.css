@@ -1,0 +1,85 @@
+/*
+ * Design tokens — ported verbatim from docs/design/F0-frontend-preview.html
+ * (approved) / UI_UX_design.md §12. Do not invent new values per-feature;
+ * extend this file if a new token is genuinely needed and note it in that
+ * feature's design-frontend.md.
+ */
+
+:root {
+  --bg: #F5F7F9;
+  --surface: #FFFFFF;
+  --surface-2: #EDF1F4;
+  --border: #DCE2E8;
+  --text: #16202E;
+  --text-muted: #5B6779;
+  --text-faint: #8A93A3;
+  --accent: #146C7A;
+  --accent-strong: #0F535E;
+  --on-accent: #FFFFFF;
+  --success: #1E8E5A;
+  --success-soft: #E3F5EC;
+  --neutral-badge: #5B6779;
+  --neutral-badge-soft: #EAEDF1;
+  --danger: #B3432E;
+  --danger-soft: #FBEAE6;
+  --warning: #9C6B12;
+  --warning-soft: #FBF1DD;
+  --focus: #146C7A;
+
+  /* Sidebar is a fixed dark brand slab — same in both page themes on purpose. */
+  --sidebar-bg: #10222A;
+  --sidebar-bg-active: #16323C;
+  --sidebar-text: #E7EEF0;
+  --sidebar-text-muted: #8FA8AC;
+  --sidebar-border: #1D3038;
+
+  --font-display: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1420;
+    --surface: #161E2B;
+    --surface-2: #1D2635;
+    --border: #2A3444;
+    --text: #E7ECF2;
+    --text-muted: #9AA6B8;
+    --text-faint: #6B7688;
+    --accent: #3FB6C4;
+    --accent-strong: #6FCAD4;
+    --on-accent: #06171A;
+    --success: #3FCB86;
+    --success-soft: #10281E;
+    --neutral-badge: #9AA6B8;
+    --neutral-badge-soft: #202A3A;
+    --danger: #E2796A;
+    --danger-soft: #33191A;
+    --warning: #D9A441;
+    --warning-soft: #2E2410;
+    --focus: #3FB6C4;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0E1420;
+  --surface: #161E2B;
+  --surface-2: #1D2635;
+  --border: #2A3444;
+  --text: #E7ECF2;
+  --text-muted: #9AA6B8;
+  --text-faint: #6B7688;
+  --accent: #3FB6C4;
+  --accent-strong: #6FCAD4;
+  --on-accent: #06171A;
+  --success: #3FCB86;
+  --success-soft: #10281E;
+  --neutral-badge: #9AA6B8;
+  --neutral-badge-soft: #202A3A;
+  --danger: #E2796A;
+  --danger-soft: #33191A;
+  --warning: #D9A441;
+  --warning-soft: #2E2410;
+  --focus: #3FB6C4;
+}

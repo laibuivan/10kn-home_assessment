@@ -28,6 +28,12 @@ Rails.application.configure do
   # Disable request forgery protection in test environment.
   config.action_controller.allow_forgery_protection = false
 
+  # Request specs default to Host: www.example.com, which Rails 8's
+  # ActionDispatch::HostAuthorization otherwise 403s (config.hosts is only
+  # pre-populated with .localhost/.test/raw-IP entries) — not internet-
+  # facing, so no reason to restrict hosts in test.
+  config.hosts.clear
+
   # Store uploaded files on the local file system in a temporary directory.
   config.active_storage.service = :test
 

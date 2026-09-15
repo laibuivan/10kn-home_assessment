@@ -18,7 +18,10 @@ docker compose up --build -d
 - Web on `http://localhost:5173`.
 - First boot runs `bin/rails db:prepare` automatically (create + migrate);
   re-running is idempotent (safe on an already-migrated DB).
-- Run gates inside the containers: `docker compose exec api bundle exec rspec`,
+- Run gates inside the containers: `docker compose exec -e RAILS_ENV=test api
+  bundle exec rspec` (the `-e RAILS_ENV=test` is not optional — the container
+  runs `RAILS_ENV=development` for the dev server; running rspec without the
+  override uses the wrong DB/config),
   `docker compose exec api bundle exec rubocop`, `docker compose exec web npm
   run lint`, `docker compose exec web npm run test:unit`.
 - Host ports (3010/5433) are non-default on purpose — this machine already had
@@ -64,7 +67,7 @@ ngay sau setup (không cần tạo tay trước khi demo) — xem README §Walkt
 ## Running the automated suites (see also `docs/sdlc.md`, `/gate`)
 
 ```bash
-cd api && bundle exec rspec              # backend unit/request specs
+cd api && RAILS_ENV=test bundle exec rspec  # backend unit/request specs
 cd web && npm run test:unit              # Vue component/unit tests (Vitest)
 cd features && npx playwright test       # acceptance (Gherkin, drives real api+web)
 ```

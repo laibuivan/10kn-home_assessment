@@ -88,9 +88,12 @@ Layout khung (áp dụng mọi trang trừ `/login`):
 **States**
 - Idle: form trống, nút enable khi cả 2 field có giá trị hợp lệ định dạng (email regex cơ bản; không cần validate mạnh vì server sẽ trả lỗi thật).
 - Submitting: disable input + nút, spinner trong nút.
-- Error: 
-  - 401 (sai email/password) → banner: "Email hoặc mật khẩu không đúng."
-  - 403 (user không `active`) → banner: "Tài khoản đã bị vô hiệu hóa, liên hệ quản trị viên."
+- Error:
+  - 401 (sai email, sai password, **hoặc** user không `active`) → banner
+    **chung một message**: "Email hoặc mật khẩu không đúng." — quyết định có
+    chủ đích (xem `docs/sot/F0-foundation.md` §12 OQ-1): không dùng mã/message
+    riêng cho tài khoản bị vô hiệu hoá, vì làm vậy sẽ lộ ra rằng email đó tồn
+    tại và có mật khẩu đúng nhưng bị khoá (user-enumeration qua response).
   - network/500 → banner: "Không thể kết nối máy chủ, thử lại sau."
 - Success: lưu token vào store (không lưu ở nơi dễ lộ ngoài chuẩn — localStorage chấp nhận được cho bài test, nêu rõ trong DESIGN.md), redirect `/devices`.
 
@@ -317,3 +320,50 @@ Tab: [ Đang gán cho Group (N) ] [ Đang gán cho Device (N) ]
 - API contract cụ thể (field name, response shape, mã lỗi) sẽ do phần backend (Rails) quyết định trước — FE nên định nghĩa 1 lớp `types/` (TypeScript interfaces) khớp với response Rails serializer, và một file `api/index.ts` tập trung toàn bộ endpoint để dễ sửa khi backend đổi field.
 - Toàn bộ quyết định thiết kế có ảnh hưởng nghiệp vụ trong tài liệu này (vd: hành vi khi inactive 1 policy đang được gán, cơ chế resolve conflict cùng-type, có/không có un-retire) phải được đối chiếu và note lại trong `DESIGN.md` của phần backend để nhất quán giữa 2 tài liệu.
 - Nếu thời gian hạn chế, có thể gộp trang Tạo/Sửa vào modal (đã thiết kế theo hướng này ở trên) thay vì route riêng, để giảm số màn hình nhưng vẫn đủ chức năng theo PRD.
+
+---
+
+## 12. Design tokens (bổ sung sau F0 — nguồn cho preview HTML lẫn Tailwind config thật)
+
+Bộ token cụ thể (hex/font) không có ở các mục trên (chỉ nói "Tailwind, tự
+chọn"). Chốt cụ thể ở đây sau khi F0 làm preview HTML đầu tiên, để **mọi
+preview sau này** (`docs/design/<id>-frontend-preview.html`, từ F2 trở đi)
+dùng chung — không tự bịa bảng màu mới mỗi feature — **và** để khi code
+Tailwind config thật (`tailwind.config` / CSS `@theme`), lấy đúng giá trị ở
+đây thay vì đoán lại. Copy nguyên khối CSS custom properties này từ
+`docs/templates/design-frontend-preview-base.html`.
+
+**Màu** — nền có hơi ngả xanh-lam (chủ đề "console quản lý thiết bị", không
+phải xám thuần), 1 accent teal, semantic tách riêng khỏi accent:
+
+| Token | Light | Dark | Dùng cho |
+| --- | --- | --- | --- |
+| `--bg` | `#F5F7F9` | `#0E1420` | Nền trang |
+| `--surface` | `#FFFFFF` | `#161E2B` | Card, window, input |
+| `--surface-2` | `#EDF1F4` | `#1D2635` | Nền phụ (input, placeholder box) |
+| `--border` | `#DCE2E8` | `#2A3444` | Viền |
+| `--text` | `#16202E` | `#E7ECF2` | Chữ chính |
+| `--text-muted` | `#5B6779` | `#9AA6B8` | Chữ phụ |
+| `--text-faint` | `#8A93A3` | `#6B7688` | Placeholder, caption |
+| `--accent` | `#146C7A` | `#3FB6C4` | Nút chính, link, focus ring |
+| `--accent-strong` | `#0F535E` | `#6FCAD4` | Hover của accent |
+| `--on-accent` | `#FFFFFF` | `#06171A` | Chữ trên nền accent |
+| `--success` | `#1E8E5A` | `#3FCB86` | Badge `active` |
+| `--neutral-badge` | `#5B6779` | `#9AA6B8` | Badge `inactive` |
+| `--danger` | `#B3432E` | `#E2796A` | Badge `retired`, lỗi, xoá |
+
+Sidebar cố định (không đổi theo theme — mảng thương hiệu riêng): `--sidebar-bg` `#10222A`, `--sidebar-bg-active` `#16323C`, `--sidebar-text` `#E7EEF0`, `--sidebar-text-muted` `#8FA8AC`.
+
+**Font** (Google Fonts — được phép qua CDN theo Artifact CSP; khi code thật thì
+tự host hoặc `@import` bình thường):
+
+- `IBM Plex Sans` (400/500/600/700) — heading + body. Chọn vì đúng chất
+  "phần mềm doanh nghiệp/kỹ thuật" (IBM Plex vốn thiết kế cho software), tránh
+  Inter/Space Grotesk mặc định.
+- `IBM Plex Mono` (400/500) — identifier, route path, JSON configuration,
+  timestamp, mọi chỗ cần `tabular-nums`.
+
+**Layout convention**: card/window bo góc `12px`, input/button bo góc `8px`,
+pill/badge bo góc tròn `100px`. Đừng đổi giá trị này mỗi feature — nếu cần
+ngoại lệ, ghi rõ lý do trong "Rủi ro/open question" của design-frontend feature
+đó.

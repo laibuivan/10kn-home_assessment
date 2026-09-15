@@ -1,0 +1,261 @@
+<!--
+  BASE cho docs/design/<feature-id>-frontend-preview.html — KHÔNG tự publish
+  file base này. Copy nguyên file, đổi <title>, giữ nguyên toàn bộ <style>
+  (token + component dùng chung — xem UI_UX_design.md §12, giá trị phải khớp
+  y hệt, không tự đổi màu/font mỗi feature), rồi:
+
+  1. Xoá khối <!-- SCREEN: ... --> mẫu bên dưới, thay bằng (các) màn hình
+     thật của feature (theo Route/screen breakdown trong <id>-frontend.md).
+  2. Nếu feature có trang nằm sau login (mọi feature trừ F0) → bọc nội dung
+     trong .shell/.sidebar/.topbar y hệt bản mẫu, chỉ đổi:
+       - nav-item nào có class "active" (feature hiện tại)
+       - nav-item nào bỏ "future" (route đã tồn tại tính đến feature này)
+       - nội dung .shell-content (bảng/form/chi tiết của feature)
+     KHÔNG vẽ lại topbar/sidebar từ đầu — dùng đúng markup/class có sẵn.
+  3. Ánh xạ mỗi trạng thái trong bảng "Empty / loading / error / success" của
+     <id>-frontend.md thành 1 khối xem được (không bắt buộc tương tác thật —
+     tĩnh + 1 nút toggle đơn giản là đủ, xem ví dụ .pw-toggle/.submit-btn
+     trong F0's preview để tham khảo cách làm 1 form thật sự bấm được).
+  4. Publish qua Artifact tool để xem trực tiếp trong chat KHI ĐANG REVIEW,
+     nhưng file .html vẫn phải nằm trong `docs/design/` và được commit —
+     đó mới là bản duyệt chính thức, Artifact chỉ là tiện xem nhanh.
+  5. Approve `<id>-frontend.md` PHẢI xem cả file preview này — 1 gate chung,
+     không tách rời (xem `docs/sdlc.md`).
+-->
+<title>REPLACE ME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* ============ TOKENS — khớp UI_UX_design.md §12, không tự đổi ============ */
+  :root {
+    --bg: #F5F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F4;
+    --border: #DCE2E8;
+    --text: #16202E;
+    --text-muted: #5B6779;
+    --text-faint: #8A93A3;
+    --accent: #146C7A;
+    --accent-strong: #0F535E;
+    --on-accent: #FFFFFF;
+    --success: #1E8E5A;
+    --success-soft: #E3F5EC;
+    --neutral-badge: #5B6779;
+    --neutral-badge-soft: #EAEDF1;
+    --danger: #B3432E;
+    --danger-soft: #FBEAE6;
+    --warning: #9C6B12;
+    --warning-soft: #FBF1DD;
+    --focus: #146C7A;
+
+    --sidebar-bg: #10222A;
+    --sidebar-bg-active: #16323C;
+    --sidebar-text: #E7EEF0;
+    --sidebar-text-muted: #8FA8AC;
+    --sidebar-border: #1D3038;
+
+    --font-display: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+      --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+      --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+      --success: #3FCB86; --success-soft: #10281E;
+      --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+      --danger: #E2796A; --danger-soft: #33191A;
+      --warning: #D9A441; --warning-soft: #2E2410;
+      --focus: #3FB6C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+    --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+    --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+    --success: #3FCB86; --success-soft: #10281E;
+    --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+    --danger: #E2796A; --danger-soft: #33191A;
+    --warning: #D9A441; --warning-soft: #2E2410;
+    --focus: #3FB6C4;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.5; }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .page { max-width: 960px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 40px; }
+
+  /* ============ page header (eyebrow/title/status pills) ============ */
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 3.4vw, 34px); margin: 6px 0 8px; text-wrap: balance; }
+  .lede { color: var(--text-muted); max-width: 62ch; font-size: 15px; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+
+  /* ============ generic pill / badge (StatusBadge) ============ */
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 100px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: var(--success-soft); }
+  .pill.ok .dot { background: var(--success); }
+  .pill.pending .dot { background: var(--text-faint); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .badge.active { color: var(--success); background: var(--success-soft); }
+  .badge.inactive { color: var(--neutral-badge); background: var(--neutral-badge-soft); }
+  .badge.retired { color: var(--danger); background: var(--danger-soft); }
+
+  /* ============ screen frame (mock browser window) ============ */
+  section.screen { display: flex; flex-direction: column; gap: 10px; }
+  .screen-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .screen-label h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+  .screen-label .ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .window { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,33,0.04); }
+  .chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .chrome .dots { display: flex; gap: 6px; flex: none; }
+  .chrome .dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .chrome .addr { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; text-align: center; }
+
+  /* ============ buttons / fields (form controls dùng chung) ============ */
+  .btn { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { color: var(--on-accent); background: var(--accent); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--surface-2); }
+  .btn-danger { color: var(--on-accent); background: var(--danger); }
+  .btn:disabled { cursor: default; opacity: 0.85; }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+  .field input, .field select, .field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; width: 100%; }
+  .field input::placeholder { color: var(--text-faint); font-family: var(--font-mono); font-size: 13px; }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: var(--surface); }
+
+  .error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
+  .warning-banner { color: var(--warning); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border)); }
+
+  /* ============ DataTable + PaginationBar ============ */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .data-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+  .table-wrap { overflow-x: auto; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); }
+  .pagination .steps { display: flex; gap: 4px; }
+  .pagination button { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+  /* ============ EmptyState / ErrorState ============ */
+  .placeholder-box { width: 100%; max-width: 420px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 30px 22px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0 auto; }
+  .placeholder-box .ic { font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); }
+  .placeholder-box strong { color: var(--text); font-weight: 600; font-size: 14px; }
+  .placeholder-box span { font-size: 12.5px; line-height: 1.5; }
+
+  /* ============ Modal (ConfirmModal/FormModal) ============ */
+  .modal-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--text) 35%, transparent); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 16px 40px rgba(15,23,33,0.2); }
+  .modal h3 { font-family: var(--font-display); font-size: 15.5px; font-weight: 600; margin: 0; }
+  .modal p { font-size: 13.5px; color: var(--text-muted); margin: 0; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+  /* ============ AppShell (Topbar + Sidebar) — dùng nguyên, chỉ đổi nav active/future ============ */
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 13px; flex: none; }
+  .brand .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+
+  .shell { display: grid; grid-template-columns: 200px 1fr; min-height: 420px; }
+  .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--sidebar-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar .brand { justify-content: flex-start; margin-bottom: 18px; padding: 0 6px; }
+  .sidebar .brand .name { color: var(--sidebar-text); }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; font-weight: 500; color: var(--sidebar-text-muted); }
+  .nav-item.active { background: var(--sidebar-bg-active); color: var(--sidebar-text); }
+  .nav-item .ic { width: 15px; text-align: center; font-family: var(--font-mono); font-size: 12px; }
+  .nav-item.future { opacity: 0.4; font-size: 12.5px; }
+  .sidebar-note { margin-top: auto; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--sidebar-text-muted); border-top: 1px solid var(--sidebar-border); padding-top: 10px; }
+
+  .shell-main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: relative; }
+  .org-pill { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 5px 11px 5px 9px; }
+  .org-pill .ic { color: var(--accent); }
+  .user-menu { position: relative; }
+  .user-btn { font: inherit; font-size: 13px; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .user-btn:hover { background: var(--surface-2); }
+  .user-dd { display: none; position: absolute; right: 0; top: calc(100% + 6px); min-width: 168px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15,23,33,0.12); padding: 5px; z-index: 5; }
+  .user-dd.open { display: block; }
+  .user-dd button { width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: none; border: none; border-radius: 6px; padding: 7px 9px; cursor: pointer; }
+  .user-dd button:hover { background: var(--surface-2); }
+  .shell-content { flex: 1; padding: 28px 24px; }
+
+  .notes { display: flex; flex-direction: column; gap: 6px; }
+  .note { font-size: 12.5px; color: var(--text-muted); display: flex; gap: 7px; align-items: flex-start; }
+  .note::before { content: "→"; color: var(--accent); flex: none; font-weight: 600; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12.5px; color: var(--text-faint); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer code, .lede code { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  @media (max-width: 640px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; overflow-x: auto; padding: 10px; }
+    .sidebar .brand, .sidebar-note { display: none; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">REPLACE — F-id · Frontend design preview</div>
+    <h1>REPLACE — tên feature, tiêu đề ngắn</h1>
+    <p class="lede">REPLACE — 1-2 câu mô tả trang này preview cái gì, nguồn từ <code>docs/design/&lt;id&gt;-frontend.md</code>.</p>
+    <div class="status-row">
+      <!-- copy đúng số pill khớp trạng thái SoT/Design thật tại thời điểm review -->
+      <span class="pill ok"><span class="dot"></span>SoT — approved</span>
+      <span class="pill pending"><span class="dot"></span>Design Frontend — draft, xem ở đây</span>
+    </div>
+  </header>
+
+  <!-- SCREEN: xoá khối mẫu này, thay bằng (các) màn hình thật của feature -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>REPLACE — tên màn hình</h2>
+      <span class="ref">&lt;id&gt;-frontend.md §2 · TênComponent.vue</span>
+    </div>
+    <div class="window">
+      <div class="chrome">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <div class="addr">localhost:5173/REPLACE</div>
+      </div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item active"><span class="ic">▣</span> REPLACE (feature hiện tại)</div>
+          <div class="nav-item future"><span class="ic">▢</span> REPLACE (route chưa có)</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar">
+            <span class="org-pill"><span class="ic">◆</span> Acme Inc.</span>
+            <div class="user-menu">
+              <button class="user-btn">admin@acme.example ▾</button>
+            </div>
+          </div>
+          <div class="shell-content">
+            REPLACE — nội dung thật của màn hình này
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">REPLACE — chú thích quyết định thiết kế, trỏ về mục cụ thể trong &lt;id&gt;-frontend.md hoặc SoT §12</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Nguồn: <code>docs/design/&lt;id&gt;-frontend.md</code>, <code>UI_UX_design.md</code></span>
+    <span>Chưa nối API thật</span>
+  </footer>
+</div>

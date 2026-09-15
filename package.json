@@ -1,0 +1,14 @@
+{
+  "name": "device-console-e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "bddgen && playwright test",
+    "test:e2e:ui": "bddgen && playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "playwright-bdd": "^9.2.1",
+    "typescript": "^5.7.0"
+  }
+}

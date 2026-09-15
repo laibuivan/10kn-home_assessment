@@ -1,13 +1,50 @@
 <!doctype html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+    <title>Device Console</title>
   </head>
   <body>
-    <div id="app"></div>
+    <!--
+      Static placeholder, replaced on mount — main.ts awaits authStore's
+      hydrate() before mounting (F0-frontend.md §4: avoid a flash of
+      /login then /devices, or vice versa, while that resolves).
+      Plain hardcoded colors on purpose: tokens.css isn't loaded yet here.
+    -->
+    <div id="app">
+      <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f5f7f9">
+        <div
+          style="
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 3px solid #dce2e8;
+            border-top-color: #146c7a;
+            animation: boot-spin 0.7s linear infinite;
+          "
+        ></div>
+      </div>
+    </div>
+    <style>
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #app div div {
+          animation: none;
+        }
+      }
+    </style>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

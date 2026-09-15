@@ -29,8 +29,13 @@ làm bản tiếp theo. **Không viết code.**
      `frontend-designer` tạo draft từ SoT + thiết kế API đã approved +
      **`UI_UX_design.md`** (design system nền, bắt buộc tuân theo route/
      component/pattern đã định nghĩa ở đó) + bảng "Giao diện bắt buộc" trong
-     `PRD.md` để đối chiếu completeness.
-   - Nếu tồn tại nhưng chưa `approved` → dừng lại, nhắc user approve.
+     `PRD.md` để đối chiếu completeness. **Bắt buộc kèm theo**
+     `docs/design/<id>-frontend-preview.html` (từ
+     `docs/templates/design-frontend-preview-base.html`) — publish qua
+     Artifact tool để user xem trực tiếp. Hai file này duyệt **cùng một lúc**,
+     không tách gate riêng.
+   - Nếu tồn tại nhưng chưa `approved` → dừng lại, nhắc user approve — nhắc
+     rõ cả file `.md` lẫn file preview `.html` đều cần được xem trước khi approve.
    - Nếu đã `approved` → cả 3 bản thiết kế đã sẵn sàng.
 
 Mỗi lần dừng lại chờ approve: tóm tắt bản thiết kế vừa tạo + open question, và

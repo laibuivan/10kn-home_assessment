@@ -1,5 +1,7 @@
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
+// vitest/config re-exports defineConfig typed with the `test` key merged in
+// — plain `vite`'s defineConfig doesn't know about it and fails typecheck.
+import { defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
