@@ -53,6 +53,8 @@ Ràng buộc (golden rule — `CLAUDE.md` §3):
 - Ruby/Rails: strict, không `rescue Exception`/`rescue nil` nuốt lỗi âm thầm.
   TypeScript ở `web/`: không dùng `any` tuỳ tiện.
 
-Kết thúc: chạy `bundle exec rspec` (trong `api/`), `npm run lint && npm run
-test:unit` (trong `web/`), và `npx playwright test` (trong `features/`) nếu môi
-trường cho phép; báo cáo file đã tạo/sửa và trạng thái gate.
+Kết thúc: chạy `docker compose exec -e RAILS_ENV=test api bundle exec rspec`
+(**`-e RAILS_ENV=test` bắt buộc** — container mặc định `RAILS_ENV=development`),
+`docker compose exec web npm run lint && npm run test:unit`, và
+`npx playwright test` (từ `features/`) nếu môi trường cho phép; báo cáo file
+đã tạo/sửa và trạng thái gate.

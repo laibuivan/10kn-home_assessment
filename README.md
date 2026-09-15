@@ -28,7 +28,7 @@ those also collide.
 Run the gates inside the containers, e.g.:
 
 ```bash
-docker compose exec api bundle exec rspec
+docker compose exec -e RAILS_ENV=test api bundle exec rspec
 docker compose exec api bundle exec rubocop
 docker compose exec web npm run lint
 docker compose exec web npm run test:unit

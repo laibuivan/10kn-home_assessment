@@ -6,8 +6,12 @@ allowed-tools: Bash(bundle exec rubocop:*), Bash(bundle exec rspec:*), Bash(npm 
 
 Chạy 4 gate kiểm tra theo thứ tự và báo cáo kết quả dưới dạng bảng (pass/fail):
 
-1. `bundle exec rubocop` (trong `api/`)
-2. `bundle exec rspec` (trong `api/`)
+1. `docker compose exec api bundle exec rubocop`
+2. `docker compose exec -e RAILS_ENV=test api bundle exec rspec` — **`-e
+   RAILS_ENV=test` bắt buộc**: container chạy `RAILS_ENV=development` cho dev
+   server, thiếu override này `rspec` sẽ chạy nhầm env dev (test DB không
+   tồn tại/không migrate, có thể còn 403 Blocked-host do
+   `config.hosts` của dev khác test — xem `config/environments/test.rb`).
 3. `npm run lint && npm run test:unit` (trong `web/`)
 4. Acceptance (Playwright) — **xem chế độ bên dưới tuỳ theo `$ARGUMENTS`**
 
