@@ -1,0 +1,32 @@
+# Rails (api/)
+/api/log/*
+/api/tmp/*
+!/api/log/.keep
+!/api/tmp/.keep
+/api/.env*
+!/api/.env.example
+/api/config/master.key
+/api/storage/*
+!/api/storage/.keep
+/api/public/assets
+/api/db/*.sqlite3*
+
+# Node / Vue (web/)
+/web/node_modules
+/web/dist
+/web/.vite
+/web/coverage
+
+# E2E (features/)
+/node_modules
+/test-results
+/playwright-report
+/.features-gen
+
+# Editors / OS
+.DS_Store
+*.swp
+
+# Claude Code runtime (not project config)
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
