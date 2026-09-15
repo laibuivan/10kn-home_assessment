@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(bundle install)",
+      "Bash(bundle exec rspec:*)",
+      "Bash(bundle exec rubocop:*)",
+      "Bash(bundle exec rails:*)",
+      "Bash(bin/rails:*)",
+      "Bash(bin/rails db:*)",
+      "Bash(bin/rails s:*)",
+      "Bash(npm install)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(npm exec:*)",
+      "Bash(npx playwright:*)",
+      "Bash(npx bddgen:*)",
+      "Bash(docker compose:*)",
+      "Bash(mise:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}
