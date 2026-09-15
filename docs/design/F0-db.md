@@ -1,8 +1,8 @@
 ---
 feature_id: F0
-status: draft   # draft | approved
-approver:
-date:
+status: approved   # draft | approved
+approver: lai.bui.vtp@gmail.com
+date: 2026-09-15
 ---
 
 # Thiết kế Database — F0
