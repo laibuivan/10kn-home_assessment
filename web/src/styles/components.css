@@ -47,12 +47,41 @@ body {
 .data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
 .data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.data-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+.data-table tr:hover td { background: var(--surface-2); }
+/*
+ * `cursor: pointer` only when the table actually IS clickable — DataTable
+ * adds `.is-clickable` when it receives an onRowClick handler. F2's device
+ * table has no row click-through (SoT F2 §3), and a pointer cursor on a
+ * dead row is exactly the "nút chết" UI_UX_design.md §0.1 forbids
+ * (docs/design/F2-frontend.md §5).
+ */
+.data-table.is-clickable tr:hover td { cursor: pointer; }
 .table-wrap { overflow-x: auto; }
 .pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); }
 .pagination .steps { display: flex; gap: 4px; }
 .pagination button { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
 .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+/* ---------- FilterBar / DataTable states / EmptyState (F2+) ---------- */
+.list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.list-head h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+.list-head .hint { font-size: 12px; color: var(--text-faint); }
+
+.filter-bar { display: flex; align-items: flex-end; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); margin-bottom: 14px; flex-wrap: wrap; }
+.filter-bar .field { width: 160px; }
+.filter-bar .field label { font-size: 11.5px; }
+.filter-bar .clear-btn { margin-left: auto; }
+
+.table-overlay-wrap { position: relative; }
+.table-loading-overlay { position: absolute; inset: 0; background: color-mix(in srgb, var(--surface) 65%, transparent); display: flex; align-items: flex-start; justify-content: center; padding-top: 36px; }
+.table-loading-overlay .spinner { width: 20px; height: 20px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); border-top-color: var(--accent); display: inline-block; }
+
+.skeleton-cell { display: inline-block; height: 11px; border-radius: 4px; width: 100%; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.3s ease-in-out infinite; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton-cell { animation: none; } }
+
+.pagination .page-indicator { padding: 4px 6px; }
+.error-banner .banner-body { display: flex; flex-direction: column; gap: 8px; width: 100%; align-items: flex-start; }
 
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
 .badge.active { color: var(--success); background: var(--success-soft); }

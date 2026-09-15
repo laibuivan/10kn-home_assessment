@@ -1,4 +1,11 @@
 class ApplicationController < ActionController::API
+  # Authorization for every resource controller from F2 on — `authorize` /
+  # `policy_scope` (docs/design/F2-api.md §5). No rescue_from for
+  # Pundit::NotAuthorizedError yet: no policy can deny anything today, so a
+  # handler would be untested dead code — F3 adds it with the first real
+  # rule (docs/plan/F2-device-list.md, Rủi ro).
+  include Pundit::Authorization
+
   # Consistent error shape for the whole API (docs/design/F0-api.md §0):
   # 404 for "not found or not yours" (never 403 — see CLAUDE.md §4, org-scope
   # must not leak whether a resource exists in another Organization).

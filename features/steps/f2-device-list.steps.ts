@@ -168,20 +168,30 @@ async function safeJson(res: { json: () => Promise<any> }): Promise<any> {
   }
 }
 
+/**
+ * Reads every visible row's fields in a single atomic browser-side snapshot.
+ *
+ * Doing this via N sequential Playwright locator round-trips (count(), then
+ * nth(i).locator(...).innerText() per field) is racy against Vue re-rendering
+ * mid-read: filtering shrinks the row count between the initial count() and
+ * later iterations, and innerText() on a since-vanished nth() then hangs
+ * retrying (actionability auto-wait) far longer than any poll timeout. A
+ * single page.evaluate reads the live DOM synchronously from the browser's
+ * perspective, so there is no window for the list to change underneath it.
+ */
 async function readVisibleDeviceRows(page: Page): Promise<Array<Record<string, string>>> {
-  const rows = page.locator('[data-testid=devices-table] [data-testid=device-row]')
-  const count = await rows.count()
-  const fields = ['identifier', 'name', 'platform', 'os_version', 'status', 'last_seen_at']
-  const out: Array<Record<string, string>> = []
-  for (let i = 0; i < count; i++) {
-    const row = rows.nth(i)
-    const rec: Record<string, string> = {}
-    for (const f of fields) {
-      rec[f] = ((await row.locator(`[data-field=${f}]`).innerText().catch(() => '')) ?? '').trim()
-    }
-    out.push(rec)
-  }
-  return out
+  return page.evaluate(() => {
+    const fields = ['identifier', 'name', 'platform', 'os_version', 'status', 'last_seen_at']
+    const rowEls = Array.from(document.querySelectorAll('[data-testid=devices-table] [data-testid=device-row]'))
+    return rowEls.map((rowEl) => {
+      const rec: Record<string, string> = {}
+      for (const f of fields) {
+        const cell = rowEl.querySelector(`[data-field="${f}"]`)
+        rec[f] = (cell?.textContent ?? '').trim()
+      }
+      return rec
+    })
+  })
 }
 
 function apiDeviceUrl(params: Record<string, string | number | undefined>): string {
@@ -354,24 +364,50 @@ When('I open the Devices page', async ({ page }) => {
   await page.goto('/devices')
 })
 
+/**
+ * Waiting for the URL alone isn't enough: per docs/design/F2-frontend.md §3/§4
+ * the route.query watcher fires the `GET /api/v1/devices` request *after* the
+ * URL already changed, and the old rows stay on screen (dimmed) until that
+ * request resolves. The listener has to be registered before the action that
+ * triggers it, or the response can land before we start waiting for it.
+ */
+function waitForDeviceListResponse(page: Page) {
+  return page.waitForResponse(
+    (res) => res.request().method() === 'GET' && res.url().includes('/api/v1/devices'),
+    { timeout: 5_000 },
+  )
+}
+
 When('I filter the device list by platform {string}', async ({ page }, platform: string) => {
+  const responseWait = waitForDeviceListResponse(page)
   await page.locator('[data-testid=filter-platform]').selectOption(platform, { timeout: 5_000 })
   await page.waitForURL(new RegExp(`platform=${platform}`), { timeout: 5_000 })
+  await responseWait
 })
 
 When('I filter the device list by status {string}', async ({ page }, status: string) => {
+  const responseWait = waitForDeviceListResponse(page)
   await page.locator('[data-testid=filter-status]').selectOption(status, { timeout: 5_000 })
   await page.waitForURL(new RegExp(`status=${status}`), { timeout: 5_000 })
+  await responseWait
 })
 
 When(
   'I filter the device list by platform {string} and status {string} at the same time',
   async ({ page }, platform: string, status: string) => {
+    // Two selects = two separate route.query changes = two separate fetches
+    // (platform-only, then platform+status) — wait out each one in turn
+    // rather than registering a single listener that would resolve on
+    // whichever of the two responses happens to land first.
+    const firstResponseWait = waitForDeviceListResponse(page)
     await page.locator('[data-testid=filter-platform]').selectOption(platform, { timeout: 5_000 })
+    await firstResponseWait
+    const secondResponseWait = waitForDeviceListResponse(page)
     await page.locator('[data-testid=filter-status]').selectOption(status, { timeout: 5_000 })
     await page.waitForURL(new RegExp(`platform=${platform}.*status=${status}|status=${status}.*platform=${platform}`), {
       timeout: 5_000,
     })
+    await secondResponseWait
   },
 )
 
@@ -457,9 +493,13 @@ When('I reload the page', async ({ page }) => {
 
 Then('I see the device list for {string} on the first page', async ({ page, world }, _label: string) => {
   await expect(page.locator('[data-testid=devices-table]')).toBeVisible({ timeout: 5_000 })
-  const rows = await readVisibleDeviceRows(page)
   const expectedCount = Math.min(DEFAULT_PAGE_SIZE, world.createdDevices?.length ?? 0)
-  expect(rows.length).toBe(expectedCount)
+  // Rows render asynchronously after the API round-trip (design mandates the
+  // old/empty table stay put under a loading state until then) — poll rather
+  // than reading once, so this doesn't race the fetch.
+  await expect
+    .poll(async () => (await readVisibleDeviceRows(page)).length, { timeout: 5_000 })
+    .toBe(expectedCount)
 })
 
 Then('I see the correct total device count and total number of pages', async ({ page, world }) => {
@@ -472,10 +512,13 @@ Then('I see the correct total device count and total number of pages', async ({ 
 })
 
 Then('I only see devices with platform {string} belonging to {string}', async ({ page, world }, platform: string, _label: string) => {
-  const rows = await readVisibleDeviceRows(page)
   const expectedIds = (world.createdDevices ?? []).filter((d) => d.platform === platform).map((d) => d.identifier).sort()
-  const actualIds = rows.map((r) => r.identifier).sort()
-  expect(actualIds).toEqual(expectedIds)
+  // Same async-render race as above: poll the identifier set until the
+  // filtered fetch has landed, instead of reading the table once.
+  await expect
+    .poll(async () => (await readVisibleDeviceRows(page)).map((r) => r.identifier).sort(), { timeout: 5_000 })
+    .toEqual(expectedIds)
+  const rows = await readVisibleDeviceRows(page)
   for (const r of rows) expect(r.platform).toBe(platform)
 })
 
@@ -486,21 +529,23 @@ Then('the list returns to page 1', async ({ page }) => {
 })
 
 Then('I only see devices with status {string} belonging to {string}', async ({ page, world }, status: string, _label: string) => {
-  const rows = await readVisibleDeviceRows(page)
   const expectedIds = (world.createdDevices ?? []).filter((d) => d.status === status).map((d) => d.identifier).sort()
-  const actualIds = rows.map((r) => r.identifier).sort()
-  expect(actualIds).toEqual(expectedIds)
+  await expect
+    .poll(async () => (await readVisibleDeviceRows(page)).map((r) => r.identifier).sort(), { timeout: 5_000 })
+    .toEqual(expectedIds)
+  const rows = await readVisibleDeviceRows(page)
   for (const r of rows) expect(r.status).toBe(status)
 })
 
 Then('I only see devices that have both platform {string} and status {string}', async ({ page, world }, platform: string, status: string) => {
-  const rows = await readVisibleDeviceRows(page)
   const expectedIds = (world.createdDevices ?? [])
     .filter((d) => d.platform === platform && d.status === status)
     .map((d) => d.identifier)
     .sort()
-  const actualIds = rows.map((r) => r.identifier).sort()
-  expect(actualIds).toEqual(expectedIds)
+  await expect
+    .poll(async () => (await readVisibleDeviceRows(page)).map((r) => r.identifier).sort(), { timeout: 5_000 })
+    .toEqual(expectedIds)
+  const rows = await readVisibleDeviceRows(page)
   for (const r of rows) {
     expect(r.platform).toBe(platform)
     expect(r.status).toBe(status)
@@ -523,8 +568,12 @@ Then('I see the empty-filter message with a {string} button', async ({ page }, l
 Then('I see exactly the remaining devices for that page, no more and no less', async ({ page, world }) => {
   const total = world.createdDevices?.length ?? 0
   const remainder = total % DEFAULT_PAGE_SIZE || DEFAULT_PAGE_SIZE
-  const rows = await readVisibleDeviceRows(page)
-  expect(rows.length).toBe(remainder)
+  // `page.goto` resolves at the `load` event, which fires long before the SPA
+  // has booted, fetched `/me`, and rendered its first row (it's a fresh page
+  // load, not a client-side navigation) — poll instead of reading once.
+  await expect
+    .poll(async () => (await readVisibleDeviceRows(page)).length, { timeout: 5_000 })
+    .toBe(remainder)
 })
 
 Then('I receive an empty device list', async ({ world }) => {
