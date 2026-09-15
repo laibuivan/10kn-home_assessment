@@ -33,8 +33,10 @@ docs/
   backlog.md          # danh sách feature (F-id), dependency map
   sot/<id>-<slug>.md               # Source of Truth đã/đang được approve — output của /brainstorm
   design/<id>-{db,api,frontend}.md # output của /design
+  design/<id>-frontend-preview.html # bắt buộc kèm frontend.md, duyệt cùng lúc
   plan/<id>-<slug>.md              # output của /plan
-  templates/          # template cho 5 loại tài liệu trên (sot, design-db, design-api, design-frontend, plan)
+  templates/          # template cho các loại tài liệu trên (sot, design-db,
+                      # design-api, design-frontend + frontend-preview-base.html, plan)
 PRD.md                # đề bài gốc — không sửa
 UI_UX_design.md        # design system nền cho FE (xem §5) — nguồn bắt buộc của bước Frontend design
 DESIGN.md             # tài liệu thiết kế tổng (bắt buộc theo PRD, viết dần khi feature xong)

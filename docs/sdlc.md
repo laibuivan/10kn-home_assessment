@@ -14,6 +14,9 @@ khi gate chưa qua, không tự ý bỏ qua.
         │  1. subagent db-designer       → docs/design/<id>-db.md
         │  2. subagent api-designer      → docs/design/<id>-api.md
         │  3. subagent frontend-designer → docs/design/<id>-frontend.md
+        │                                + docs/design/<id>-frontend-preview.html
+        │                                  (bắt buộc, publish qua Artifact — 1 gate
+        │                                  chung với file .md, không tách riêng)
         │  ⟵ NGƯỜI review + approve từng bản
         ▼
 /plan F-id              subagent: Plan
