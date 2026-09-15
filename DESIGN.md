@@ -13,6 +13,7 @@ tương ứng đánh dấu **TODO**, không bịa trước.
 - [Auth / phân quyền / tách Organization](#auth--phân-quyền--tách-organization) ✅ F0
 - [Giả định](#giả-định) — TODO
 - [Rủi ro production còn lại](#rủi-ro-production-còn-lại) — TODO
+- [AI](#ai) — cập nhật dần theo feature (F0, F2 done)
 
 ---
 
@@ -127,3 +128,66 @@ feature đủ nhiều để không lặp lại quá sớm.
 TODO — sẽ điền khi thấy rõ scope hơn (kỳ vọng gồm: JWT không có refresh/
 revoke, login lookup xuyên-org không có index tối ưu ở scale lớn, chưa có
 rate-limit cho `/api/v1/sessions`).
+
+## AI
+
+Toàn bộ dự án được làm qua Claude Code (Sonnet 5), theo đúng vòng đời ATDD ở
+`docs/sdlc.md`/`CLAUDE.md` §3: mỗi feature đi qua `/brainstorm` (SoT) →
+`/design` (Database → API → Frontend, mỗi bước approve riêng) → `/plan` →
+`/acceptance` (RED) → implement → `/gate` → `/code-review`/`/security-review`.
+Các vai trò (analyst, db-designer, api-designer, frontend-designer, Plan,
+acceptance-author, slice-implementer) là các agent con tách biệt, mỗi agent
+chỉ đọc đúng tài liệu nguồn đã approve của bước trước, không tự bịa ngoài
+`PRD.md`.
+
+### F0 (Foundation: Organization/User, JWT auth, Login)
+- **AI làm**: toàn bộ vòng đời trên — SoT, 3 bản thiết kế, plan, acceptance
+  test, model/migration, `Authenticatable` concern, `SessionsController`,
+  Login page + auth store, seed 2 org, toàn bộ test (RSpec + Vitest +
+  Playwright).
+- **Tự thiết kế (không có trong PRD, phải tự quyết định và ghi rõ)**: quy ước
+  lỗi JSON chung (`{"errors": {...}}` vs `{"error": "..."}}`), thứ tự
+  candidate khi 2 org trùng email lúc login (`id ASC`, xem SoT F0 OQ-2), chọn
+  không dùng Tailwind mà viết CSS token trực tiếp từ `UI_UX_design.md` §12.
+
+### F2 (Device list — phân trang + lọc platform/status)
+- **AI làm**: toàn bộ vòng đời như F0, cộng thêm: quyết định wire Pundit từ
+  F2 (thay vì hoãn tới khi có role thật — xem `docs/design/F2-api.md` §5),
+  build 6 component dùng chung đầu tiên (`FilterBar`, `DataTable`,
+  `PaginationBar`, `StatusBadge`, `EmptyState`, `ErrorState`) cho F3+ tái sử
+  dụng.
+- **Con người ủy quyền cho AI tự approve các gate** (SoT → Design DB/API/FE →
+  Plan) trong phiên làm việc này — mọi Open Question ở mỗi bước được AI chọn
+  theo đúng phương án khuyến nghị đã tự đề xuất trước đó (per_page 20/100,
+  sort `created_at DESC, id DESC`, 422 cho enum/pagination sai, page vượt
+  tổng → 200 rỗng, sanitize phía FE cho URL bị sửa tay, auto-redirect trang
+  vượt tổng). Ghi rõ ở đây vì đây là quyết định nghiệp vụ, không phải chi
+  tiết implement — nếu review lại thấy phương án nào không hợp lý, cần sửa
+  ở đúng file thiết kế tương ứng (`docs/design/F2-*.md`) trước khi đổi code.
+- **Chỗ AI sai đã tự phát hiện và sửa** (qua `/code-review`, trước khi báo
+  Done):
+  - `coerce_positive_integer` dùng `Integer(str, exception: false)` không
+    chỉ định base — khiến `page=010` bị hiểu thành octal (8), `page=09` bị
+    từ chối nhầm (octal không có chữ số 9), `per_page=0x1A` bị chấp nhận
+    thành 26. Sửa bằng cách ép base 10 tường minh.
+  - `PaginationBar.vue` hiển thị sai ("Hiển thị 19961–25 / 25") và nút
+    "Trước" bấm không phản ứng trong khoảng thời gian ngắn khi `page` trên
+    URL vượt quá tổng số trang (trước khi tự động điều hướng về trang hợp
+    lệ hoàn tất) — do đọc thẳng `currentPage` chưa được kẹp trong khoảng
+    hợp lệ. Sửa bằng 1 computed `displayPage` kẹp giá trị.
+  - `web/src/main.ts` cài `router` **trước** khi `hydrate()` xong — khiến
+    mọi lần mở thẳng URL cần đăng nhập (hoặc F5) bị điều hướng nhầm về
+    `/login` dù token còn hợp lệ, dù đây là bug tồn tại từ F0 (F0 chỉ test
+    qua `/login`, F2 mới lần đầu test mở thẳng `/devices`). Sửa bằng cách
+    chuyển `app.use(router)` vào trong `.finally()` của `hydrate()`, đúng ý
+    đã ghi ở `docs/design/F0-frontend.md` §4 nhưng chưa được code đúng.
+  - `playwright.config.ts` chạy `fullyParallel: true` trong khi các scenario
+    dùng chung 1 Postgres instance (không có DB riêng theo worker) — khiến
+    scenario "chạy seed 2 lần không tạo trùng" của F0 (so tổng số dòng toàn
+    cục) bị flaky khi F2 tạo thêm nhiều Organization song song. Sửa bằng
+    `workers: 1`.
+  - Helper `readVisibleDeviceRows` trong acceptance step (không phải code
+    sản phẩm) lấy `count()` rồi đọc field tuần tự nhiều round-trip — bị race
+    với Vue re-render khi filter thay đổi, khiến 3 scenario filter fail
+    không ổn định. Sửa bằng cách đọc toàn bộ bảng trong 1 lệnh
+    `page.evaluate` atomic, không đổi ý nghĩa scenario.
