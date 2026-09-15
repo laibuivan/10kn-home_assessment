@@ -1,0 +1,121 @@
+/*
+ * Shared component classes — same visual vocabulary as
+ * docs/design/F0-frontend-preview.html (and future <id>-frontend-preview.html
+ * files). Import once in main.ts; components use these classes directly
+ * instead of writing their own CSS, so every screen stays visually
+ * consistent by construction. Extend this file (don't fork it) when a new
+ * shared component is needed — same rule as tokens.css.
+ */
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+::selection { background: var(--accent); color: var(--on-accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---------- brand lockup ---------- */
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 13px; flex: none; }
+.brand .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+
+/* ---------- buttons / fields ---------- */
+.btn { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+.btn-primary { color: var(--on-accent); background: var(--accent); }
+.btn-primary:hover { background: var(--accent-strong); }
+.btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
+.btn-secondary:hover { background: var(--surface-2); }
+.btn-danger { color: var(--on-accent); background: var(--danger); }
+.btn:disabled { cursor: default; opacity: 0.85; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+.field input, .field select, .field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; width: 100%; }
+.field input::placeholder { color: var(--text-faint); font-family: var(--font-mono); font-size: 13px; }
+.field input:focus, .field select:focus { border-color: var(--accent); background: var(--surface); }
+
+.error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+.error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
+.warning-banner { color: var(--warning); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border)); }
+
+/* ---------- DataTable + PaginationBar (not used until F2+, kept ready) ---------- */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+.data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.data-table tr:hover td { background: var(--surface-2); cursor: pointer; }
+.table-wrap { overflow-x: auto; }
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); }
+.pagination .steps { display: flex; gap: 4px; }
+.pagination button { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+.badge.active { color: var(--success); background: var(--success-soft); }
+.badge.inactive { color: var(--neutral-badge); background: var(--neutral-badge-soft); }
+.badge.retired { color: var(--danger); background: var(--danger-soft); }
+
+.placeholder-box { width: 100%; max-width: 420px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 30px 22px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0 auto; }
+.placeholder-box .ic { font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); }
+.placeholder-box strong { color: var(--text); font-weight: 600; font-size: 14px; }
+.placeholder-box span { font-size: 12.5px; line-height: 1.5; }
+
+.modal-backdrop { position: fixed; inset: 0; background: color-mix(in srgb, var(--text) 35%, transparent); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+.modal { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 16px 40px rgba(15, 23, 33, 0.2); }
+.modal h3 { font-family: var(--font-display); font-size: 15.5px; font-weight: 600; margin: 0; }
+.modal p { font-size: 13.5px; color: var(--text-muted); margin: 0; }
+.modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* ---------- Login screen ---------- */
+.login-stage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px; background: radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%), var(--bg); }
+.login-card { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 20px; }
+.login-card .brand { justify-content: center; }
+.card-body { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 26px 24px 24px; display: flex; flex-direction: column; gap: 16px; }
+.card-body h3 { font-family: var(--font-display); font-size: 18px; font-weight: 600; margin: 0; }
+.pw-row { position: relative; }
+.pw-row input { padding-right: 62px; }
+.pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 4px 6px; }
+.pw-toggle:hover { color: var(--text); }
+
+.submit-btn { font: inherit; font-weight: 600; font-size: 14px; color: var(--on-accent); background: var(--accent); border: none; border-radius: 8px; padding: 10px 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.15s ease; width: 100%; }
+.submit-btn:hover { background: var(--accent-strong); }
+.submit-btn:disabled { cursor: default; opacity: 0.85; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--on-accent) 35%, transparent); border-top-color: var(--on-accent); animation: spin 0.7s linear infinite; display: none; }
+.submit-btn[data-busy="true"] .spinner { display: inline-block; }
+.submit-btn[data-busy="true"] .btn-label { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+/* ---------- App shell (Topbar + Sidebar) ---------- */
+.shell { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
+.sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--sidebar-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar .brand { justify-content: flex-start; margin-bottom: 18px; padding: 0 6px; }
+.sidebar .brand .name { color: var(--sidebar-text); }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; font-weight: 500; color: var(--sidebar-text-muted); text-decoration: none; }
+.nav-item.active { background: var(--sidebar-bg-active); color: var(--sidebar-text); }
+.nav-item .ic { width: 15px; text-align: center; font-family: var(--font-mono); font-size: 12px; }
+.nav-item.future { opacity: 0.4; font-size: 12.5px; cursor: default; }
+.sidebar-note { margin-top: auto; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--sidebar-text-muted); border-top: 1px solid var(--sidebar-border); padding-top: 10px; }
+
+.shell-main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: relative; }
+.org-pill { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 5px 11px 5px 9px; }
+.org-pill .ic { color: var(--accent); }
+.user-menu { position: relative; }
+.user-btn { font: inherit; font-size: 13px; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.user-btn:hover { background: var(--surface-2); }
+.user-dd { display: none; position: absolute; right: 0; top: calc(100% + 6px); min-width: 168px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15, 23, 33, 0.12); padding: 5px; z-index: 5; }
+.user-dd.open { display: block; }
+.user-dd button { width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: none; border: none; border-radius: 6px; padding: 7px 9px; cursor: pointer; }
+.user-dd button:hover { background: var(--surface-2); }
+.shell-content { flex: 1; padding: 28px 24px; }
+
+@media (max-width: 640px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar { flex-direction: row; overflow-x: auto; padding: 10px; }
+  .sidebar .brand, .sidebar-note { display: none; }
+}

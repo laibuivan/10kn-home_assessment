@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
+// Root is intentionally just the router outlet — main.ts already resolves
+// the initial auth hydrate() before mounting (see docs/design/F0-frontend.md
+// §4), so there's no loading state to render here.
 </script>
 
 <template>
-  <HelloWorld />
+  <RouterView />
 </template>
