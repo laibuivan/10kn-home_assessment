@@ -32,13 +32,17 @@ const store = useDevicesStore()
  * the dropdowns can only produce valid values, so a 422 banner would only
  * ever be shown to someone who typed the URL themselves (§5 OQ-FE-1/2).
  */
+/** vue-router repeats a query key as an array (`?page=1&page=2`) — only the first value is ever meaningful here. */
+function firstQueryValue(value: string | (string | null)[] | null): string | null {
+  return Array.isArray(value) ? (value[0] ?? null) : value
+}
+
 const activeQuery = computed<DeviceQueryParams>(() => {
-  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page
-  const parsedPage = Number(rawPage)
+  const parsedPage = Number(firstQueryValue(route.query.page))
   const page = Number.isInteger(parsedPage) && parsedPage >= 1 ? parsedPage : 1
 
-  const rawPlatform = Array.isArray(route.query.platform) ? route.query.platform[0] : route.query.platform
-  const rawStatus = Array.isArray(route.query.status) ? route.query.status[0] : route.query.status
+  const rawPlatform = firstQueryValue(route.query.platform)
+  const rawStatus = firstQueryValue(route.query.status)
 
   return {
     platform: isDevicePlatform(rawPlatform) ? rawPlatform : undefined,
@@ -121,12 +125,15 @@ function onPageChange(page: number) {
   })
 }
 
+// `activeQuery` is a computed that reads individual route.query.* fields, so
+// it already re-evaluates as a plain reference change on every navigation —
+// `deep: true` would only add a wasted recursive diff of the returned object.
 watch(
   activeQuery,
   () => {
     load()
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 // A page number past the end of the (possibly just-filtered) result set

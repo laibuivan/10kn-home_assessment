@@ -21,4 +21,13 @@ class ApplicationController < ActionController::API
   def render_bad_request(exception)
     render json: { error: exception.message }, status: :bad_request
   end
+
+  # Shared field-level 422 envelope (docs/design/F0-api.md §0:
+  # `{"errors": {"<field>": ["<message>"]}}`) — every controller that
+  # validates request shape before querying (DevicesController today, more
+  # resource controllers from F3 on) renders through this one method so the
+  # shape can't drift between them.
+  def render_validation_errors(errors)
+    render json: { errors: errors }, status: :unprocessable_content
+  end
 end

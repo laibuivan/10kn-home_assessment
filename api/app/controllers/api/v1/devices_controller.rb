@@ -76,10 +76,15 @@ module Api
 
       # Integer(..., exception: false), never String#to_i: "12abc".to_i
       # would quietly become 12 and "abc".to_i a 0 (F2-api.md §2 step 2).
+      # Base 10 is explicit: without it, Integer() infers the base from the
+      # string itself, so "010" silently parses as octal 8, "0x1A" as hex 26,
+      # and a leading-zero decimal like "09" (invalid octal digit) raises
+      # instead of just being nine — none of which is "a positive integer"
+      # in the plain decimal sense the API contract promises.
       def coerce_positive_integer(raw)
         return nil if raw.blank?
 
-        value = Integer(raw.to_s, exception: false)
+        value = Integer(raw.to_s, 10, exception: false)
         value if value&.positive?
       end
 
@@ -116,10 +121,6 @@ module Api
           created_at: device.created_at,
           updated_at: device.updated_at
         }
-      end
-
-      def render_validation_errors(errors)
-        render json: { errors: errors }, status: :unprocessable_content
       end
     end
   end

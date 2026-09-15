@@ -30,12 +30,14 @@ const emit = defineEmits<{
 // carries the first one's value instead of dropping it.
 const values = ref<Record<string, string>>({ ...props.modelValue })
 
+// The parent always passes a freshly-built object (a computed in
+// DeviceListView), so a reference-equality watch already fires on every
+// real change — `deep: true` would only add a wasted recursive diff.
 watch(
   () => props.modelValue,
   (next) => {
     values.value = { ...next }
   },
-  { deep: true },
 )
 
 const hasActiveFilter = computed(() => Object.values(values.value).some((v) => !!v))
