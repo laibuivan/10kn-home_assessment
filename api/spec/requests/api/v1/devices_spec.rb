@@ -18,6 +18,16 @@ RSpec.describe "GET /api/v1/devices", type: :request do
     response.parsed_body
   end
 
+  def post_device(params = {}, token: token_for(user))
+    headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+    post "/api/v1/devices", params: params, headers: headers
+  end
+
+  def patch_device(id, params = {}, token: token_for(user))
+    headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+    patch "/api/v1/devices/#{id}", params: params, headers: headers
+  end
+
   describe "authentication (A10)" do
     it "rejects a request with no Authorization header" do
       get_devices({}, token: nil)
@@ -328,6 +338,225 @@ RSpec.describe "GET /api/v1/devices", type: :request do
 
       get_devices({}, token: token_for(other_user))
       expect(body["meta"]["total_count"]).to eq(1)
+    end
+  end
+end
+
+RSpec.describe "POST /api/v1/devices", type: :request do
+  let(:organization) { create(:organization, name: "Acme Inc.") }
+  let(:user) { create(:user, organization: organization) }
+  let(:other_organization) { create(:organization, name: "Globex Corp.") }
+
+  def token_for(a_user)
+    JsonWebToken.encode(user_id: a_user.id, organization_id: a_user.organization_id)
+  end
+
+  def post_device(params = {}, token: token_for(user))
+    headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+    post "/api/v1/devices", params: params, headers: headers
+  end
+
+  def body
+    response.parsed_body
+  end
+
+  describe "authentication (A14)" do
+    it "rejects a request with no Authorization header" do
+      post_device({ identifier: "X", name: "X", platform: "ios" }, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe "creating successfully (main flow, A2)" do
+    it "creates the device belonging to the current organization" do
+      post_device({ identifier: "IPHONE-001", name: "iPhone của Alice", platform: "ios" })
+
+      expect(response).to have_http_status(:created)
+      expect(body["device"]).to include(
+        "identifier" => "IPHONE-001", "name" => "iPhone của Alice", "platform" => "ios"
+      )
+      expect(Device.find(body["device"]["id"]).organization_id).to eq(organization.id)
+    end
+
+    it "defaults status to active, ignoring any status the client sends (OQ-2)" do
+      post_device({ identifier: "IPHONE-003", name: "Some Device", platform: "ios", status: "retired" })
+
+      expect(response).to have_http_status(:created)
+      expect(body["device"]["status"]).to eq("active")
+    end
+
+    it "ignores organization_id sent by the client (A9)" do
+      post_device({ identifier: "IPHONE-104", name: "Spoofed Org Device", platform: "ios", organization_id: other_organization.id })
+
+      expect(response).to have_http_status(:created)
+      expect(Device.find(body["device"]["id"]).organization_id).to eq(organization.id)
+    end
+  end
+
+  describe "duplicate identifier (A1, A3)" do
+    it "rejects a duplicate identifier within the same organization with a field-level 422" do
+      create(:device, organization: organization, identifier: "IPHONE-001")
+
+      post_device({ identifier: "IPHONE-001", name: "Another Device", platform: "android" })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"]).to eq("identifier" => [ Device::IDENTIFIER_TAKEN_MESSAGE ])
+    end
+
+    it "allows the same identifier when it belongs to a different organization" do
+      create(:device, organization: other_organization, identifier: "IPHONE-001")
+
+      post_device({ identifier: "IPHONE-001", name: "Alice's iPhone", platform: "ios" })
+
+      expect(response).to have_http_status(:created)
+    end
+  end
+
+  describe "missing required fields (A4)" do
+    it "reports a field-level error for every blank required field at once" do
+      post_device({})
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"].keys).to match_array(%w[identifier name platform])
+    end
+  end
+
+  describe "invalid platform enum (A5)" do
+    it "rejects an out-of-enum platform with a 422, never a 500" do
+      post_device({ identifier: "IPHONE-002", name: "Some Device", platform: "windows" })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"]).to eq("platform" => [ "is not included in the list" ])
+    end
+  end
+
+  describe "race condition (A13)" do
+    # Two genuinely concurrent requests hitting the unique index isn't
+    # reliably reproducible under RSpec's transactional-fixtures wrapping
+    # (each example runs inside one DB transaction, so a second thread's
+    # connection can't see the not-yet-committed organization/user rows).
+    # Instead, simulate the losing request's exact failure mode directly:
+    # Device#save raising ActiveRecord::RecordNotUnique, which is exactly
+    # what a real unique-index collision raises before app-level validation
+    # even gets a chance to see it (F3-db.md §3).
+    it "rescues a RecordNotUnique from the DB into the same 422 shape as the app-level check (A12)" do
+      allow_any_instance_of(Device).to receive(:save).and_raise(
+        ActiveRecord::RecordNotUnique.new("duplicate key value violates unique constraint")
+      )
+
+      post_device({ identifier: "IPHONE-105", name: "Race Device", platform: "ios" })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"]).to eq("identifier" => [ Device::IDENTIFIER_TAKEN_MESSAGE ])
+    end
+  end
+end
+
+RSpec.describe "PATCH /api/v1/devices/:id", type: :request do
+  let(:organization) { create(:organization, name: "Acme Inc.") }
+  let(:user) { create(:user, organization: organization) }
+  let(:other_organization) { create(:organization, name: "Globex Corp.") }
+
+  def token_for(a_user)
+    JsonWebToken.encode(user_id: a_user.id, organization_id: a_user.organization_id)
+  end
+
+  def patch_device(id, params = {}, token: token_for(user))
+    headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+    patch "/api/v1/devices/#{id}", params: params, headers: headers
+  end
+
+  def body
+    response.parsed_body
+  end
+
+  describe "authentication (A14)" do
+    it "rejects an expired token" do
+      device = create(:device, organization: organization)
+      expired = JsonWebToken.encode({ user_id: user.id, organization_id: user.organization_id }, -1)
+
+      patch_device(device.id, { name: "New Name" }, token: expired)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe "updating successfully (A6)" do
+    it "updates the permitted fields on a non-retired device" do
+      device = create(:device, organization: organization, status: :active, platform: :ios)
+
+      patch_device(device.id, { name: "Updated Name", platform: "android", os_version: "9.9.9" })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["device"]).to include("name" => "Updated Name", "platform" => "android", "os_version" => "9.9.9")
+      expect(device.reload.name).to eq("Updated Name")
+    end
+  end
+
+  describe "transitioning into retired (A7)" do
+    it "succeeds when the device is currently active" do
+      device = create(:device, organization: organization, status: :active)
+
+      patch_device(device.id, { status: "retired" })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["device"]["status"]).to eq("retired")
+      expect(device.reload.status).to eq("retired")
+    end
+  end
+
+  describe "already-retired device (A8)" do
+    it "blocks the update entirely with the exact error message, changing no field" do
+      device = create(:device, :retired, organization: organization, name: "Original Name")
+
+      patch_device(device.id, { name: "Hacked Name" })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"]).to eq("base" => [ "Thiết bị đã retired, không thể sửa" ])
+      expect(device.reload.name).to eq("Original Name")
+    end
+
+    it "blocks even a no-op update (resending the same values)" do
+      device = create(:device, :retired, organization: organization)
+
+      patch_device(device.id, { name: device.name, platform: device.platform })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"]).to eq("base" => [ "Thiết bị đã retired, không thể sửa" ])
+    end
+  end
+
+  describe "invalid status enum (A9)" do
+    it "rejects an out-of-enum status with a 422" do
+      device = create(:device, organization: organization, status: :active)
+
+      patch_device(device.id, { status: "deleted" })
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(body["errors"]).to eq("status" => [ "is not included in the list" ])
+    end
+  end
+
+  describe "identifier is immutable (A10)" do
+    it "ignores an identifier sent in the update body — 200, identifier unchanged" do
+      device = create(:device, organization: organization, identifier: "IPHONE-103")
+
+      patch_device(device.id, { identifier: "IPHONE-999" })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["device"]["identifier"]).to eq("IPHONE-103")
+      expect(device.reload.identifier).to eq("IPHONE-103")
+    end
+  end
+
+  describe "cross-organization (A11, CLAUDE.md §4)" do
+    it "returns 404, not 403, when the device belongs to another organization" do
+      device = create(:device, organization: other_organization, identifier: "IPHONE-777")
+
+      patch_device(device.id, { name: "Hack Attempt" })
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 end

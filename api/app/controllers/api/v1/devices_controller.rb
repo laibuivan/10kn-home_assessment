@@ -10,6 +10,14 @@ module Api
     class DevicesController < ApplicationController
       include Authenticatable
 
+      # A11/A12 (SoT F3 §11) — race-condition duplicate identifiers land here
+      # as a DB-level unique-index violation rather than the app-level
+      # uniqueness validate (whichever request loses the race never gets to
+      # see its own EXISTS check fail first). Scoped locally, not on
+      # ApplicationController: the message is Device-specific semantics, not
+      # a generic resource concern (docs/design/F3-api.md §5).
+      rescue_from ActiveRecord::RecordNotUnique, with: :render_identifier_taken
+
       DEFAULT_PAGE = 1
       DEFAULT_PER_PAGE = 20
       MAX_PER_PAGE = 100
@@ -46,6 +54,47 @@ module Api
         }
       end
 
+      # POST /api/v1/devices — docs/design/F3-api.md §2.1.
+      #
+      # Never permits status/organization_id: the created record is always
+      # current_organization.devices.build(...) with status left at its
+      # column default (active) — the only defense needed for A9/OQ-2.
+      def create
+        errors = {}
+        errors[:platform] = [ ENUM_ERROR ] if invalid_enum?(create_params[:platform], Device.platforms.keys)
+        return render_validation_errors(errors) if errors.any?
+
+        authorize Device
+
+        device = current_organization.devices.build(create_params)
+        if device.save
+          render json: { device: serialize_device(device) }, status: :created
+        else
+          render_validation_errors(device.errors.messages)
+        end
+      end
+
+      # PATCH /api/v1/devices/:id — docs/design/F3-api.md §2.2.
+      #
+      # Record is found through the Pundit scope, so a cross-org id raises
+      # ActiveRecord::RecordNotFound (rescued globally into a 404 — never a
+      # 403, CLAUDE.md §4) before authorize even runs.
+      def update
+        device = policy_scope(Device).find(params[:id])
+        authorize device
+
+        errors = {}
+        errors[:platform] = [ ENUM_ERROR ] if invalid_enum?(update_params[:platform], Device.platforms.keys)
+        errors[:status] = [ ENUM_ERROR ] if invalid_enum?(update_params[:status], Device.statuses.keys)
+        return render_validation_errors(errors) if errors.any?
+
+        if device.update(update_params)
+          render json: { device: serialize_device(device) }
+        else
+          render_validation_errors(device.errors.messages)
+        end
+      end
+
       private
 
       # Both pagination params are reported together rather than failing on
@@ -66,6 +115,19 @@ module Api
 
       def invalid_enum?(value, allowed)
         value.present? && !value.in?(allowed)
+      end
+
+      # Request body is flat (no `device:` wrapper) — docs/design/F3-api.md §0.
+      def create_params
+        params.permit(:identifier, :name, :platform, :os_version)
+      end
+
+      def update_params
+        params.permit(:name, :platform, :os_version, :status)
+      end
+
+      def render_identifier_taken
+        render_validation_errors(identifier: [ Device::IDENTIFIER_TAKEN_MESSAGE ])
       end
 
       # Absent (or blank) means "use the default" — only a value that is

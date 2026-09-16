@@ -10,6 +10,14 @@ class DevicePolicy < ApplicationPolicy
     true
   end
 
+  def create?
+    true
+  end
+
+  def update?
+    true
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       # Deliberately goes through the association, never Device.where(...) —

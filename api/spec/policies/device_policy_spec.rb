@@ -10,6 +10,26 @@ RSpec.describe DevicePolicy, type: :policy do
     end
   end
 
+  describe "#create?" do
+    it "allows any active user of an organization to create a device (no in-org roles)" do
+      expect(described_class.new(user, Device).create?).to be(true)
+    end
+  end
+
+  describe "#update?" do
+    it "allows any active user of an organization to update a device (no in-org roles)" do
+      device = create(:device, organization: organization)
+
+      expect(described_class.new(user, device).update?).to be(true)
+    end
+
+    it "is true even for a retired device — the retired-immutable rule lives in the model, not Pundit" do
+      device = create(:device, :retired, organization: organization)
+
+      expect(described_class.new(user, device).update?).to be(true)
+    end
+  end
+
   describe "Scope" do
     subject(:resolved) { described_class::Scope.new(user, Device).resolve }
 

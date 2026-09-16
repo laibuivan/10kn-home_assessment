@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { LocationQueryRaw } from 'vue-router'
 import AppShell from '../../components/AppShell.vue'
@@ -9,7 +9,9 @@ import PaginationBar from '../../components/PaginationBar.vue'
 import StatusBadge from '../../components/StatusBadge.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
+import DeviceFormModal from '../../components/DeviceFormModal.vue'
 import { useDevicesStore } from '../../stores/devices'
+import { useToastStore } from '../../stores/toast'
 import {
   DEVICE_PLATFORMS,
   DEVICE_STATUSES,
@@ -23,6 +25,7 @@ import type { DataTableColumn, FilterDefinition } from '../../types/ui'
 const route = useRoute()
 const router = useRouter()
 const store = useDevicesStore()
+const toastStore = useToastStore()
 
 /**
  * The URL is the single source of truth for "what is being shown"
@@ -80,7 +83,40 @@ const columns: DataTableColumn<Device>[] = [
   { key: 'os_version', label: 'OS Version', value: (row) => row.os_version },
   { key: 'status', label: 'Status' },
   { key: 'last_seen_at', label: 'Last seen', value: (row) => formatTimestamp(row.last_seen_at) },
+  { key: 'actions', label: '', cellClass: 'actions-cell' },
 ]
+
+const RETIRED_EDIT_BLOCKED_MESSAGE = 'Thiết bị đã retired, không thể sửa'
+
+// ---------- Create/edit modal (F3-frontend.md §1/§3) ----------
+const showModal = ref(false)
+const modalMode = ref<'create' | 'edit'>('create')
+const modalDevice = ref<Device | null>(null)
+
+function openCreateModal() {
+  modalMode.value = 'create'
+  modalDevice.value = null
+  showModal.value = true
+}
+
+function openEditModal(device: Device) {
+  modalMode.value = 'edit'
+  modalDevice.value = device
+  showModal.value = true
+}
+
+function closeModal() {
+  showModal.value = false
+}
+
+function onSaved(payload: { mode: 'create' | 'edit'; message: string }) {
+  closeModal()
+  toastStore.push(payload.message)
+  // Refetch at the current filter/page from the URL — no query change, no
+  // page jump (SoT F3 §5.1). If the just-edited record no longer matches
+  // the active filter it simply disappears from the table; that's correct.
+  load()
+}
 
 function formatTimestamp(value: string | null): string | null {
   if (!value) return null
@@ -95,6 +131,13 @@ function formatTimestamp(value: string | null): string | null {
 const showEmptyState = computed(
   () => !store.loading && store.meta !== null && store.meta.total_count === 0,
 )
+
+// Variant A1 (org has no devices at all, no filter applied) is the only
+// empty variant that gets a "+ Thêm Device" CTA (SoT F3 §7); A2 (empty
+// because of an active filter) keeps just "Xóa lọc" as in F2. The list-head
+// button is hidden while A1's own CTA is showing so there is only ever one
+// `add-device-button` on the page at a time (F3-frontend.md §2).
+const showEmptyStateA1 = computed(() => showEmptyState.value && !hasActiveFilter.value)
 
 function load() {
   return store.fetchDevices(activeQuery.value)
@@ -154,6 +197,15 @@ watch(
   <AppShell>
     <div class="list-head">
       <h3>Devices</h3>
+      <button
+        v-if="!showEmptyStateA1"
+        type="button"
+        class="btn btn-primary"
+        data-testid="add-device-button"
+        @click="openCreateModal"
+      >
+        + Thêm Device
+      </button>
     </div>
 
     <!-- Always visible, in every state — including while the table is in
@@ -186,7 +238,11 @@ watch(
       v-else-if="showEmptyState"
       title="Không có thiết bị nào"
       description="Organization này chưa có Device nào."
-    />
+    >
+      <button type="button" class="btn btn-primary" data-testid="add-device-button" @click="openCreateModal">
+        + Thêm Device
+      </button>
+    </EmptyState>
 
     <template v-else>
       <DataTable
@@ -199,6 +255,27 @@ watch(
       >
         <template #cell-status="{ row }">
           <StatusBadge :status="(row as Device).status" />
+        </template>
+        <template #cell-actions="{ row }">
+          <span
+            v-if="(row as Device).status === 'retired'"
+            class="tooltip-wrap"
+            data-testid="edit-device-tooltip"
+            :title="RETIRED_EDIT_BLOCKED_MESSAGE"
+          >
+            <button type="button" class="btn btn-secondary" data-testid="edit-device-button" disabled>
+              Sửa
+            </button>
+          </span>
+          <button
+            v-else
+            type="button"
+            class="btn btn-secondary"
+            data-testid="edit-device-button"
+            @click="openEditModal(row as Device)"
+          >
+            Sửa
+          </button>
         </template>
       </DataTable>
 
@@ -213,4 +290,12 @@ watch(
       />
     </template>
   </AppShell>
+
+  <DeviceFormModal
+    v-if="showModal"
+    :mode="modalMode"
+    :device="modalDevice"
+    @saved="onSaved"
+    @cancel="closeModal"
+  />
 </template>

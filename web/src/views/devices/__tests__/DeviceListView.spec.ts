@@ -3,11 +3,13 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { setActivePinia, createPinia } from 'pinia'
 import DeviceListView from '../DeviceListView.vue'
-import { fetchDeviceList } from '../../../api/devices'
+import { fetchDeviceList, createDevice, updateDevice } from '../../../api/devices'
 import type { Device, DeviceListResponse } from '../../../types/device'
 
 vi.mock('../../../api/devices', () => ({
   fetchDeviceList: vi.fn(),
+  createDevice: vi.fn(),
+  updateDevice: vi.fn(),
 }))
 
 function device(overrides: Partial<Device> = {}): Device {
@@ -96,7 +98,7 @@ describe('DeviceListView', () => {
     expect(fetchDeviceList).toHaveBeenCalledWith({ platform: undefined, status: undefined, page: 1 })
   })
 
-  it('shows the plain empty state (no CTA) when the org has no devices at all', async () => {
+  it('shows the empty state with a "+ Thêm Device" CTA (and no filter-clear button) when the org has no devices at all', async () => {
     vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([]))
 
     const { wrapper } = await mountView('/devices')
@@ -104,6 +106,21 @@ describe('DeviceListView', () => {
     expect(wrapper.find('[data-testid=empty-state]').text()).toContain('Không có thiết bị nào')
     expect(wrapper.find('[data-testid=empty-state-clear-button]').exists()).toBe(false)
     expect(wrapper.find('[data-testid=filter-clear-button]').exists()).toBe(false)
+    // Exactly one "+ Thêm Device" on the page — the list-head one is hidden
+    // while this variant's own CTA is showing (F3-frontend.md §2).
+    expect(wrapper.findAll('[data-testid=add-device-button]')).toHaveLength(1)
+  })
+
+  it('does not show a "+ Thêm Device" CTA on the filtered empty state (A2 stays "Xóa lọc" only)', async () => {
+    vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([]))
+
+    const { wrapper } = await mountView('/devices?platform=macos')
+
+    expect(wrapper.find('[data-testid=empty-state]').findAll('[data-testid=add-device-button]')).toHaveLength(
+      0,
+    )
+    // The list-head button is still there in this variant.
+    expect(wrapper.findAll('[data-testid=add-device-button]')).toHaveLength(1)
   })
 
   it('shows the filtered empty state with a "Xóa lọc" button when a filter matches nothing', async () => {
@@ -264,5 +281,128 @@ describe('DeviceListView', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-field=identifier]').text()).toBe('NEW-1')
+  })
+
+  describe('create/edit modal (F3)', () => {
+    it('opens the create modal from the list-head "+ Thêm Device" button', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device()]))
+      const { wrapper } = await mountView('/devices')
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(false)
+
+      await wrapper.find('[data-testid=add-device-button]').trigger('click')
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(true)
+      expect(wrapper.findAll('h3').map((h) => h.text())).toContain('Thêm Device')
+      expect(wrapper.find('[data-testid=device-form-identifier]').exists()).toBe(true)
+      expect((wrapper.find('[data-testid=device-form-identifier]').element as HTMLInputElement).value).toBe(
+        '',
+      )
+    })
+
+    it('opens the edit modal from a row\'s "Sửa" button, prefilled from that row, without an extra API call', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(
+        listResponse([device({ id: 5, identifier: 'IOS-0001', name: 'iPhone 14' })]),
+      )
+      const { wrapper } = await mountView('/devices')
+      const callsBeforeEdit = vi.mocked(fetchDeviceList).mock.calls.length
+
+      await wrapper.find('[data-testid=edit-device-button]').trigger('click')
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(true)
+      expect((wrapper.find('[data-testid=device-form-identifier]').element as HTMLInputElement).value).toBe(
+        'IOS-0001',
+      )
+      expect((wrapper.find('[data-testid=device-form-name]').element as HTMLInputElement).value).toBe(
+        'iPhone 14',
+      )
+      expect(fetchDeviceList).toHaveBeenCalledTimes(callsBeforeEdit)
+    })
+
+    it('disables the "Sửa" button and shows the tooltip on a retired row', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(
+        listResponse([device({ identifier: 'IOS-0004', status: 'retired' })]),
+      )
+      const { wrapper } = await mountView('/devices')
+
+      const editButton = wrapper.find('[data-testid=edit-device-button]')
+      expect(editButton.attributes('disabled')).toBeDefined()
+
+      const tooltip = wrapper.find('[data-testid=edit-device-tooltip]')
+      expect(tooltip.attributes('title')).toBe('Thiết bị đã retired, không thể sửa')
+    })
+
+    it('does not open a modal when clicking the disabled "Sửa" button on a retired row', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(
+        listResponse([device({ identifier: 'IOS-0004', status: 'retired' })]),
+      )
+      const { wrapper } = await mountView('/devices')
+
+      await wrapper.find('[data-testid=edit-device-button]').trigger('click')
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(false)
+    })
+
+    it('closes the modal, toasts, and reloads at the current filter/page on @saved (create)', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device()], { total_count: 1 }))
+      vi.mocked(createDevice).mockResolvedValueOnce({ device: device({ id: 99, identifier: 'IPHONE-042' }) })
+      const { wrapper, router } = await mountView('/devices?platform=ios')
+
+      await wrapper.find('[data-testid=add-device-button]').trigger('click')
+      await wrapper.find('[data-testid=device-form-identifier]').setValue('IPHONE-042')
+      await wrapper.find('[data-testid=device-form-name]').setValue('Alice iPhone')
+      await wrapper.find('[data-testid=device-form-platform]').setValue('ios')
+      const callsBeforeSave = vi.mocked(fetchDeviceList).mock.calls.length
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid=toast]').text()).toContain('Đã tạo device')
+      // Refetch happens at the same filter/page still in the URL — no query change.
+      expect(router.currentRoute.value.query).toEqual({ platform: 'ios' })
+      expect(fetchDeviceList).toHaveBeenCalledTimes(callsBeforeSave + 1)
+      expect(fetchDeviceList).toHaveBeenLastCalledWith({ platform: 'ios', status: undefined, page: 1 })
+    })
+
+    it('closes the modal, toasts, and reloads on @saved (edit)', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(
+        listResponse([device({ identifier: 'IOS-0001', name: 'iPhone 14' })]),
+      )
+      vi.mocked(updateDevice).mockResolvedValueOnce({
+        device: device({ identifier: 'IOS-0001', name: 'Updated Name' }),
+      })
+      const { wrapper } = await mountView('/devices')
+
+      await wrapper.find('[data-testid=edit-device-button]').trigger('click')
+      await wrapper.find('[data-testid=device-form-name]').setValue('Updated Name')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid=toast]').text()).toContain('Đã cập nhật device')
+    })
+
+    it('closes the modal without saving or refetching when Cancel is clicked', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device()]))
+      const { wrapper } = await mountView('/devices')
+      const callsBeforeCancel = vi.mocked(fetchDeviceList).mock.calls.length
+
+      await wrapper.find('[data-testid=add-device-button]').trigger('click')
+      await wrapper.find('[data-testid=device-form-cancel]').trigger('click')
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(false)
+      expect(createDevice).not.toHaveBeenCalled()
+      expect(fetchDeviceList).toHaveBeenCalledTimes(callsBeforeCancel)
+    })
+
+    it('opens the create modal from the empty state\'s "+ Thêm Device" CTA', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([]))
+      const { wrapper } = await mountView('/devices')
+
+      await wrapper.find('[data-testid=add-device-button]').trigger('click')
+
+      expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(true)
+    })
   })
 })

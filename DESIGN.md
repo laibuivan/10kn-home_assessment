@@ -191,3 +191,56 @@ chỉ đọc đúng tài liệu nguồn đã approve của bước trước, kh�
     với Vue re-render khi filter thay đổi, khiến 3 scenario filter fail
     không ổn định. Sửa bằng cách đọc toàn bộ bảng trong 1 lệnh
     `page.evaluate` atomic, không đổi ý nghĩa scenario.
+### F3 (Device create/edit + validate — identifier unique trong org)
+- **AI làm**: toàn bộ vòng đời — SoT, 3 bản thiết kế, plan (25 task/6 wave),
+  acceptance test (18 scenario, xác nhận RED đúng lý do trước khi code), model
+  (`Device` callback), `DevicesController#create/#update`, `DevicePolicy`,
+  route, RSpec, và toàn bộ phía FE (`FormModal.vue`/`DeviceFormModal.vue`/
+  `ToastContainer.vue`, `stores/toast.ts`, mở rộng `stores/devices.ts`/
+  `api/devices.ts`/`types/device.ts`/`utils/apiError.ts`, wiring vào
+  `DeviceListView.vue`, Vitest).
+- **Con người ủy quyền cho AI tự approve các gate** (SoT → Design DB/API/FE →
+  Plan) trong phiên làm việc này, cùng cách đã làm ở F2 — mọi Open Question
+  (OQ-1..OQ-7 ở SoT, OQ-DB1 ở Design DB, các quyết định envelope/response ở
+  Design API) được AI chọn theo đúng phương án khuyến nghị đã tự đề xuất
+  trước đó. Ghi rõ ở đây vì đây là quyết định nghiệp vụ, không phải chi tiết
+  implement.
+- **Tự thiết kế (không có trong PRD, phải tự quyết định và ghi rõ)**:
+  - Cơ chế "identifier bất biến sau khi tạo": dùng `before_validation` reset
+    (`self.identifier = identifier_was if identifier_changed?`) thay vì
+    `attr_readonly :identifier` — tránh "response drift" (giá trị trong bộ
+    nhớ object bị đổi dù cột DB không đổi) nếu 1 endpoint tương lai lỡ
+    mass-assign field này (`docs/design/F3-db.md` §1a).
+  - Cơ chế "retired bất biến": `before_validation` + `throw(:abort)` (không
+    phải `validate` thường) để short-circuit toàn bộ chuỗi validate còn lại
+    khi `status_was == "retired"` — đảm bảo response 422 chỉ có đúng 1 lỗi
+    `base`, không lẫn lỗi field khác (`docs/design/F3-db.md` §1b).
+  - Envelope response `{ "device": {...} }` cho `POST`/`PATCH` (SoT/Design DB
+    không chốt shape này) — chọn bọc theo tiền lệ F0 (`sessions`/`me`), và
+    tái dùng đúng khung lỗi `{"errors": {...}}` hiện có cho cả lỗi
+    field-level lẫn lỗi "chặn vì retired" (chỉ khác key `base` thay vì tên
+    field) — để FE chỉ cần 1 quy tắc phân biệt banner/field-level duy nhất.
+  - Tách `FormModal.vue` (shell dùng chung, không biết gì về field cụ thể)
+    khỏi `DeviceFormModal.vue` (feature-specific) — chuẩn bị tái dùng cho
+    Group/Policy form ở F5+ mà không cần thiết kế lại từ đầu.
+  - Tooltip dùng `title` gốc của trình duyệt (không xây component Tooltip
+    riêng) — `UI_UX_design.md` §8 không liệt kê component này, thêm 1
+    component mới cho đúng 1 chỗ dùng là over-engineering.
+- **Chỗ AI sai đã tự phát hiện và sửa (trước khi báo Done)**:
+  - Khi tự viết Quyết định cho OQ-4 ở SoT §12 (trích dẫn lại câu tooltip từ
+    `UI_UX_design.md` §4 dòng 128), AI tự ý thêm dấu chấm cuối câu
+    ("...không thể sửa.") không có trong bản gốc — sai lệch này lan sang cả
+    3 bản `docs/design/F3-{db,api,frontend}.md`. Phát hiện khi
+    `acceptance-author` đối chiếu message giữa SoT §11 (không dấu chấm, đúng
+    theo `UI_UX_design.md`) và 3 bản design (có dấu chấm, sai) trước khi viết
+    `.feature`. Sửa bằng cách đồng bộ lại toàn bộ 3 bản design + preview HTML
+    về đúng bản gốc không dấu chấm — **không sửa acceptance test** (test đã
+    viết đúng theo SoT ngay từ đầu).
+  - `extractFormErrors` (FE) theo đúng pseudocode ở `docs/design/F3-frontend.md`
+    sẽ tin tưởng bất kỳ `body.error` string nào làm banner — nhưng 1 lỗi hạ
+    tầng 500 có kèm JSON body (`{"error": "Internal server error"}`) sẽ làm
+    lộ nguyên văn message hạ tầng ra UI thay vì banner chung "Có lỗi xảy ra,
+    vui lòng thử lại." (SoT A13). Sửa bằng cách thêm điều kiện `status < 500`
+    trước khi tin `body.error` — mọi 5xx luôn rơi về `genericFallback` bất kể
+    body chứa gì, không đổi hành vi cho 401/404.
+

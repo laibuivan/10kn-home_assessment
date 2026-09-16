@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import ToastContainer from './ToastContainer.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -67,4 +68,6 @@ function logout() {
       </div>
     </div>
   </div>
+
+  <ToastContainer />
 </template>
