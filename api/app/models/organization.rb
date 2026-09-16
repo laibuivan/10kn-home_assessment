@@ -9,6 +9,11 @@ class Organization < ApplicationRecord
   # together with the Organization-delete flow if one is ever added
   # (docs/design/F2-db.md §4).
   has_many :devices
+  # Same "no `dependent:` decided yet" reasoning as :devices above
+  # (docs/design/F5-db.md §4c) — nothing in the product deletes an
+  # Organization, so there is no cascade to choose. Decide for users/devices/
+  # groups in one go if an Organization-delete flow is ever added.
+  has_many :groups
 
   validates :name, presence: true
 end

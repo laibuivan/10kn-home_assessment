@@ -83,6 +83,15 @@ body {
 .filter-bar .field label { font-size: 11.5px; }
 .filter-bar .clear-btn { margin-left: auto; }
 
+/* Search row of the Groups list (F5-frontend.md §5) — deliberately NOT
+   `.filter-bar`, which is the boxed frame of F2's select filters. */
+.search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.search-row .field { width: 280px; }
+
+/* A description can be up to 500 chars — keep it to one line so it can
+   never break the table layout; the full text lives in the `title`. */
+.cell-truncate { display: block; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .table-overlay-wrap { position: relative; }
 .table-loading-overlay { position: absolute; inset: 0; background: color-mix(in srgb, var(--surface) 65%, transparent); display: flex; align-items: flex-start; justify-content: center; padding-top: 36px; }
 .table-loading-overlay .spinner { width: 20px; height: 20px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); border-top-color: var(--accent); display: inline-block; }

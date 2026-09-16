@@ -13,7 +13,7 @@ tương ứng đánh dấu **TODO**, không bịa trước.
 - [Auth / phân quyền / tách Organization](#auth--phân-quyền--tách-organization) ✅ F0
 - [Giả định](#giả-định) — TODO
 - [Rủi ro production còn lại](#rủi-ro-production-còn-lại) — TODO
-- [AI](#ai) — cập nhật dần theo feature (F0, F2 done)
+- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5 done)
 
 ---
 
@@ -139,6 +139,93 @@ Các vai trò (analyst, db-designer, api-designer, frontend-designer, Plan,
 acceptance-author, slice-implementer) là các agent con tách biệt, mỗi agent
 chỉ đọc đúng tài liệu nguồn đã approve của bước trước, không tự bịa ngoài
 `PRD.md`.
+
+**Thay đổi quy trình kể từ F5 (quyết định của user, 2026-09-16)**: user yêu
+cầu tạm bỏ golden rule #3 (viết acceptance test `.feature` trước khi code) và
+gate #4 (Playwright full suite) — `CLAUDE.md` §3 đã sửa trực tiếp, đánh dấu
+mốc thời gian và ghi rõ "có thể bật lại trước khi nộp bài". Từ F5 trở đi,
+"Done" của một feature chỉ còn tính theo **3 gate**: rubocop, rspec,
+eslint+vitest. 39 acceptance scenario của F5 vẫn được viết đầy đủ trong
+`docs/sot/F5-group-crud.md` §11 (dùng làm hợp đồng hành vi, ánh xạ trực tiếp
+vào RSpec request spec + Vitest component test thay vì Gherkin/Playwright).
+Không có file `features/f5-group-crud.feature` nào được tạo.
+
+### F5 (Group CRUD — list/create/edit/xóa an toàn)
+- **AI làm**: toàn bộ vòng đời còn lại của quy trình (SoT → 3 bản thiết kế +
+  preview HTML → plan 30 task/8 wave → implement → gate). **User ủy quyền cho
+  AI tự review & approve toàn bộ** (SoT, cả 3 design, mọi open question) trong
+  phiên làm việc này — không dừng lại chờ duyệt từng bước.
+- **Quyết định phạm vi quan trọng nhất (SoT OQ-3)**: tại thời điểm F5 build,
+  `group_memberships` (F6) và `policy_assignments` (F8) **chưa tồn tại**, nên
+  invariant nặng nhất của đề bài ("xóa Group không để dữ liệu treo",
+  `CLAUDE.md` §4) **chưa thể test end-to-end** ở F5. AI chọn: F5 chỉ chốt
+  **hợp đồng hành vi** (transaction ngầm của `#destroy!`, `dependent:
+  :delete_all` tường minh khi bảng tồn tại) và **ghi nợ tường minh** cho F6/F8
+  phải tự thêm association + test "xóa group không để join row mồ côi,
+  device/policy vẫn còn" khi tạo bảng join tương ứng — thay vì tạo sớm 2 bảng
+  đó (đoán mò schema/index mà F6/F8 sẽ tự thiết kế lại theo yêu cầu 10k
+  device/idempotent) hoặc gắn tag skip lên một scenario RED vĩnh viễn.
+- **Refactor chạm vào 2 feature đã Done** (quyết định lúc approve design API/
+  frontend, không phải tự ý lúc code): tách `Paginatable` concern dùng chung
+  giữa `DevicesController`/`GroupsController` (thay vì copy lần thứ 2 cùng một
+  khối phân trang); chuyển `firstQueryValue` từ `DeviceListView.vue` sang
+  `utils/queryParams.ts` dùng chung; gộp `PaginationMeta` vào `types/ui.ts`,
+  `DeviceListMeta` thành alias. Cả 3 đều là refactor thuần hành vi, có gate
+  regression riêng (chạy lại toàn bộ `devices_spec.rb` + toàn bộ Vitest cũ,
+  không sửa spec nào) trước khi coi Done.
+- **Tự thiết kế (không có trong PRD, phải tự quyết định và ghi rõ)**:
+  - `ConfirmModal.vue` — component xác nhận xóa dùng chung, build lần đầu ở
+    F5 dù đã được `UI_UX_design.md` §8 định nghĩa khung trước; đặc tả đủ tổng
+    quát (single-flight, không tự đóng, focus mặc định vào nút Hủy, không
+    `window.confirm`) để F6 (gỡ device khỏi group) và F8 (gỡ/gán policy) dùng
+    lại nguyên vẹn, không phải sửa.
+  - Cơ chế highlight sidebar: thiết kế ban đầu chọn `active-class` của
+    `RouterLink`, nhưng lúc implement phát hiện `/devices` và `/devices/:id`
+    là 2 route **ngang hàng** (không lồng nhau) nên `active-class` không
+    match ở trang chi tiết Device — chuyển sang so `route.path` bằng
+    `startsWith` (phương án dự phòng đã được ghi sẵn trong
+    `docs/design/F5-frontend.md` OQ-FE-3 cho đúng tình huống này), có comment
+    giải thích ngay trong `AppShell.vue`.
+  - Bỏ cột "Số device" và action "Xem chi tiết" khỏi Group list dù
+    `UI_UX_design.md` §6.1 có vẽ — vì F5 chưa có `group_memberships` (không
+    nguồn dữ liệu cho số đếm) và chưa có nội dung thật cho trang chi tiết
+    (tab Thành viên/Policies thuộc F6/F8); dựng sớm sẽ là field giả/trang
+    trống. F6 phải khôi phục đầy đủ cả hai.
+- **Chỗ AI sai đã tự phát hiện và sửa (trước khi báo Done)**:
+  - Hai bẫy thiết kế được chủ động kiểm chứng bằng cách phá code có chủ đích
+    rồi khôi phục, để xác nhận test thật sự bắt được thay vì tin suông vào
+    coverage: (1) đổi `group.destroy!` thành `group.delete` → request spec
+    "goes through #destroy" đỏ ngay; (2) bỏ `Group.sanitize_sql_like` khỏi
+    filter `q` → 2 case `q="%"`/`q="_"` đỏ ngay (ghi chú: một mình case
+    `q="100%"` **không** đủ bắt bẫy này vì pattern `%100%%` vẫn chỉ khớp tên
+    có chứa "100" — phải có case `q` là thuần ký tự wildcard mới bắt được).
+  - `/code-review` (medium) sau khi implement xong phát hiện 3 lỗi thật
+    trong code do AI viết, cả 3 đều đã sửa và có test khóa lại hành vi đúng:
+    (1) `GroupListView.onSaved` bắn **2 request `GET /groups`** cho 1 lần tạo
+    group khi đang ở trang ≥ 2 — `replaceQuery` bỏ `page` khỏi URL đã tự kích
+    hoạt `watch(activeQuery, load)`, cộng thêm lệnh `load()` tường minh ngay
+    sau đó là dư thừa; sửa bằng cách chỉ gọi `load()` tường minh khi đang ở
+    trang 1 (lúc đó `replaceQuery` không đổi URL nên watcher không tự chạy),
+    thêm test riêng "refetch đúng 1 lần" cho cả 2 nhánh (đang ở trang 1 / đang
+    ở trang khác) và siết assertion cũ từ `toBeGreaterThan` thành đúng bằng
+    số lần gọi. (2) hằng `DELETE_MISSING_MESSAGE` (tên ngụ ý chỉ dùng cho
+    luồng xóa) bị dùng lại cho cả nhánh 404 của luồng **sửa** — đổi tên thành
+    `GROUP_MISSING_MESSAGE` để tên hằng khớp đúng phạm vi dùng, tránh người
+    sau sửa nhầm câu chữ của luồng này mà không biết đang ảnh hưởng cả luồng
+    kia. (3) `ConfirmModal.vue` hard-code `id="confirm-modal-title"` cho
+    `aria-labelledby` — an toàn ở F5 vì `GroupListView` chỉ mount 1 modal tại
+    một thời điểm, nhưng component này được thiết kế để F6/F8 dùng lại
+    nguyên vẹn nên không được giả định mãi mãi chỉ có 1 instance; sửa bằng
+    `useId()` (Vue 3.5) để mỗi instance có id riêng, tránh đụng độ DOM id nếu
+    sau này có màn hình mount 2 `ConfirmModal` cùng lúc.
+  - Các finding còn lại của code review (trùng lặp shell modal giữa
+    `ConfirmModal`/`FormModal`, trùng khối field-error giữa
+    `GroupFormModal`/`DeviceFormModal`, trùng guard `lastRequestId` giữa
+    `stores/groups.ts`/`stores/devices.ts`, nút "+ Thêm Group" lặp ở 2 nơi
+    trong `GroupListView.vue`) là duplication ở mức thấp, nhất quán với
+    pattern per-feature-modal/per-feature-store đã có từ F2/F3 (không phải
+    hồi quy do F5 gây ra) — không sửa để tránh trừu tượng hoá sớm ngoài
+    scope, theo đúng nguyên tắc "3 dòng lặp còn hơn 1 abstraction non".
 
 ### F0 (Foundation: Organization/User, JWT auth, Login)
 - **AI làm**: toàn bộ vòng đời trên — SoT, 3 bản thiết kế, plan, acceptance

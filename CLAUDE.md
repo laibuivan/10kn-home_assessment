@@ -48,12 +48,17 @@ README.md             # bắt buộc theo PRD — setup, seed, chạy test, walk
 1. Không thiết kế trước khi SoT (`docs/sot/`) `status: approved`.
 2. Không code trước khi cả 3 bản thiết kế (`docs/design/<id>-{db,api,frontend}.md`)
    đều `status: approved`.
-3. Viết acceptance test (`features/*.feature`) **trước**, xác nhận **RED** đúng lý
-   do (feature chưa build) rồi mới code. **Cấm** sửa acceptance test để nó pass.
+3. ~~Viết acceptance test (`features/*.feature`) trước, xác nhận RED đúng lý do
+   (feature chưa build) rồi mới code. Cấm sửa acceptance test để nó pass.~~
+   **TẠM NGƯNG (từ 2026-09-16, quyết định của user, có thể bật lại trước khi
+   nộp bài):** không bắt buộc viết `.feature`/step definitions trước khi code
+   nữa. Nếu `features/*.feature` đã có từ trước cho một feature, không cần giữ
+   nó pass, nhưng không tự ý xóa trừ khi được yêu cầu.
 4. TDD cho pure logic (`api/app/services/`, policy-resolution...): test fail
    trước → code → green.
-5. 4 gate (`/gate`: rubocop, rspec, eslint+vitest, playwright full suite) phải
-   xanh trước khi coi feature Done / trước commit.
+5. 4 gate → còn **3 gate bắt buộc**: rubocop, rspec, eslint+vitest phải xanh
+   trước khi coi feature Done / trước commit. Gate Playwright (E2E) **tạm
+   ngưng** (từ 2026-09-16, quyết định của user) — không chạy, không chặn Done.
 
 ## 4. Invariant nghiệp vụ — không bao giờ được vi phạm dù đang làm feature nào
 
