@@ -20,9 +20,15 @@ export async function fetchDeviceList(params: DeviceQueryParams): Promise<Device
   return response.data
 }
 
-/** Response envelope shared by create/update — F3-api.md §0: resource always wrapped in `device`. */
-interface DeviceResponse {
+/** Response envelope shared by show/create/update — F3-api.md §0/F4-api.md §0: resource always wrapped in `device`. */
+export interface DeviceResponse {
   device: Device
+}
+
+/** GET /api/v1/devices/:id — docs/design/F4-api.md §1. `id` is passed through as-is (route params are always strings). */
+export async function fetchDevice(id: number | string): Promise<DeviceResponse> {
+  const response = await apiClient.get<DeviceResponse>(`/api/v1/devices/${id}`)
+  return response.data
 }
 
 /**

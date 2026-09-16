@@ -114,5 +114,6 @@ Feature: Device create/edit with organization-scoped validation
   Scenario: The Edit button is disabled on the list for a retired device
     Given I am logged in as an active user of organization "Acme Inc." with a device "IPHONE-203" that is "retired"
     When I open the Devices page
-    Then the "Sửa" button for that device is disabled
-    And I see the tooltip "Thiết bị đã retired, không thể sửa" when hovering over that button
+    And I open the row actions menu for that device
+    Then the "Sửa" action for that device is disabled
+    And I see the tooltip "Thiết bị đã retired, không thể sửa" when hovering over that action

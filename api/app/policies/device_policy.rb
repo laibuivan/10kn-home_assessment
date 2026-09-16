@@ -10,6 +10,10 @@ class DevicePolicy < ApplicationPolicy
     true
   end
 
+  def show?
+    true
+  end
+
   def create?
     true
   end

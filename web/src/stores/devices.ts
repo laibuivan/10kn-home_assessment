@@ -18,6 +18,15 @@ interface DevicesState {
   error: string | null
   /** Monotonic id of the most recent request; older responses are discarded. */
   lastRequestId: number
+  /**
+   * Full path (with query string) of the last time `DeviceListView` was on
+   * screen — read by `DeviceDetailView`'s "◀ Quay lại danh sách" so it can
+   * restore the filter/page the user was viewing (SoT F4 OQ-5). Lives only
+   * for this SPA session on purpose: a direct reload of the detail page has
+   * no "previous list view" to return to, so `null` correctly falls back to
+   * `/devices` with no filter (F4-frontend.md §3).
+   */
+  lastListLocation: string | null
 }
 
 /**
@@ -35,6 +44,7 @@ export const useDevicesStore = defineStore('devices', {
     loading: false,
     error: null,
     lastRequestId: 0,
+    lastListLocation: null,
   }),
 
   actions: {

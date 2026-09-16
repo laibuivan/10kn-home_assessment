@@ -54,6 +54,21 @@ module Api
         }
       end
 
+      # GET /api/v1/devices/:id — docs/design/F4-api.md §2.1.
+      #
+      # Record is found through the Pundit scope, so a cross-org id, a
+      # nonexistent id, or a malformed id all raise
+      # ActiveRecord::RecordNotFound (rescued globally into a 404 — never a
+      # 403, CLAUDE.md §4) before authorize even runs — confirmed by direct
+      # experiment that a non-integer id never reaches the DB as raw SQL
+      # (F4-db.md §4), so no extra guard is needed here.
+      def show
+        device = policy_scope(Device).find(params[:id])
+        authorize device
+
+        render json: { device: serialize_device(device) }
+      end
+
       # POST /api/v1/devices — docs/design/F3-api.md §2.1.
       #
       # Never permits status/organization_id: the created record is always

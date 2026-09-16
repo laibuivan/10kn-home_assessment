@@ -51,8 +51,18 @@ cd web && npm install && npm run dev
 
 ## What's here so far
 
-Only the Rails/Vue skeleton + Docker Compose — no business logic yet (no
-Organization/User/Device/Group/Policy models, no auth, no seed data). That's
-`F0` in `docs/backlog.md`, built through the ATDD workflow in `docs/sdlc.md`.
-The seed accounts, test-run instructions, and 5-minute walkthrough the PRD
-requires will be added here once real features exist.
+Built through the ATDD workflow in `docs/sdlc.md` — see `docs/backlog.md` for
+the full feature list/status. Done so far: `F0` (Organization/User, JWT auth,
+Login), `F2` (Device list — pagination + platform/status filter), `F3`
+(Device create/edit, identifier unique per Organization, retired-immutable),
+`F4` (Device detail page — info, plus the "Groups đang thuộc"/"Policy đang áp
+dụng" panels, which stay an empty placeholder until Group/Policy land in
+F5–F9). Not built yet: Groups, Policies, policy assignment/resolution.
+
+`bin/rails db:seed` (run automatically by `docker compose up --build` on
+first run) creates 2 Organizations ("Acme Inc.", "Globex Corp.") each with a
+login account at `admin@<org>.example` / `Password123!`, plus a spread of
+Devices across every platform/status combo — enough to exercise pagination,
+filtering, and the detail page from the UI. The full 5-minute walkthrough
+this section owes the PRD will be written once Groups/Policies exist too
+(walking through "gán policy" needs those features).

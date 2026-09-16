@@ -10,6 +10,20 @@ RSpec.describe DevicePolicy, type: :policy do
     end
   end
 
+  describe "#show?" do
+    it "allows any active user of an organization to view a device (no in-org roles)" do
+      device = create(:device, organization: organization)
+
+      expect(described_class.new(user, device).show?).to be(true)
+    end
+
+    it "is true even for a retired device" do
+      device = create(:device, :retired, organization: organization)
+
+      expect(described_class.new(user, device).show?).to be(true)
+    end
+  end
+
   describe "#create?" do
     it "allows any active user of an organization to create a device (no in-org roles)" do
       expect(described_class.new(user, Device).create?).to be(true)
