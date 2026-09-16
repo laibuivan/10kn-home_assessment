@@ -163,4 +163,52 @@ RSpec.describe Device, type: :model do
       expect(device.reload.status).to eq("retired")
     end
   end
+
+  describe "#record_seen! (F4 — viewing a device's detail page bumps last_seen_at)" do
+    it "sets last_seen_at to now for an active device" do
+      device = create(:device, status: :active, last_seen_at: nil)
+
+      freeze_time do
+        device.record_seen!
+
+        expect(device.last_seen_at).to eq(Time.current)
+        expect(device.reload.last_seen_at).to eq(Time.current)
+      end
+    end
+
+    it "overwrites a previous last_seen_at with the new now" do
+      device = create(:device, status: :active, last_seen_at: 3.days.ago)
+
+      device.record_seen!
+
+      expect(device.reload.last_seen_at).to be_within(1.second).of(Time.current)
+    end
+
+    it "does NOT change last_seen_at for a retired device — retired stays fully immutable (CLAUDE.md §4)" do
+      device = create(:device, :retired, last_seen_at: nil)
+
+      device.record_seen!
+
+      expect(device.reload.last_seen_at).to be_nil
+    end
+
+    it "does not touch updated_at (this is telemetry bookkeeping, not a user edit)" do
+      device = create(:device, status: :active)
+      original_updated_at = device.updated_at
+
+      travel 1.hour do
+        device.record_seen!
+      end
+
+      expect(device.reload.updated_at).to eq(original_updated_at)
+    end
+
+    it "does not run validations or the retired-block callback (bypasses the update path entirely)" do
+      device = create(:device, status: :active)
+      device.name = nil # would fail `validates :name, presence: true` on a normal #update
+
+      expect { device.record_seen! }.not_to raise_error
+      expect(device.reload.name).not_to be_nil # in-memory-only change never persisted
+    end
+  end
 end

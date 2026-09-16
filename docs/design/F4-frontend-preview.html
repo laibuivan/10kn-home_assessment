@@ -1,0 +1,316 @@
+<title>F4 — Device Detail preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #F5F7F9; --surface: #FFFFFF; --surface-2: #EDF1F4; --border: #DCE2E8;
+    --text: #16202E; --text-muted: #5B6779; --text-faint: #8A93A3;
+    --accent: #146C7A; --accent-strong: #0F535E; --on-accent: #FFFFFF;
+    --success: #1E8E5A; --success-soft: #E3F5EC;
+    --neutral-badge: #5B6779; --neutral-badge-soft: #EAEDF1;
+    --danger: #B3432E; --danger-soft: #FBEAE6;
+    --warning: #9C6B12; --warning-soft: #FBF1DD;
+    --focus: #146C7A;
+    --sidebar-bg: #10222A; --sidebar-bg-active: #16323C; --sidebar-text: #E7EEF0;
+    --sidebar-text-muted: #8FA8AC; --sidebar-border: #1D3038;
+    --font-display: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+      --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+      --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+      --success: #3FCB86; --success-soft: #10281E;
+      --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+      --danger: #E2796A; --danger-soft: #33191A;
+      --warning: #D9A441; --warning-soft: #2E2410;
+      --focus: #3FB6C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+    --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+    --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+    --success: #3FCB86; --success-soft: #10281E;
+    --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+    --danger: #E2796A; --danger-soft: #33191A;
+    --warning: #D9A441; --warning-soft: #2E2410;
+    --focus: #3FB6C4;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.5; }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .page { max-width: 960px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 40px; }
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 3.4vw, 34px); margin: 6px 0 8px; text-wrap: balance; }
+  .lede { color: var(--text-muted); max-width: 62ch; font-size: 15px; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 100px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: var(--success-soft); }
+  .pill.ok .dot { background: var(--success); }
+  .pill.pending .dot { background: var(--text-faint); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .badge.active { color: var(--success); background: var(--success-soft); }
+  .badge.inactive { color: var(--neutral-badge); background: var(--neutral-badge-soft); }
+  .badge.retired { color: var(--danger); background: var(--danger-soft); }
+  section.screen { display: flex; flex-direction: column; gap: 10px; }
+  .screen-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .screen-label h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+  .screen-label .ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .window { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,33,0.04); }
+  .chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .chrome .dots { display: flex; gap: 6px; flex: none; }
+  .chrome .dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .chrome .addr { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; text-align: center; }
+  .btn { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { color: var(--on-accent); background: var(--accent); }
+  .btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
+  .btn:disabled { cursor: default; opacity: 0.6; }
+  .error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
+  .neutral-banner { color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .data-table.is-clickable tr:hover td { background: var(--surface-2); cursor: pointer; }
+  .actions-cell { text-align: right; position: relative; }
+  .dropdown-trigger { font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+  .dropdown-menu { display: none; position: absolute; right: 14px; top: calc(100% + 2px); min-width: 168px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15,23,33,0.12); padding: 5px; z-index: 6; text-align: left; }
+  .dropdown-menu.open { display: block; }
+  .dropdown-item { width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: none; border: none; border-radius: 6px; padding: 7px 9px; cursor: pointer; display: block; }
+  .dropdown-item:hover:not(:disabled) { background: var(--surface-2); }
+  .dropdown-item:disabled { color: var(--text-faint); cursor: not-allowed; }
+  .placeholder-box { width: 100%; border: 1.5px dashed var(--border); border-radius: 10px; padding: 24px 20px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .placeholder-box.page-level { max-width: 420px; margin: 40px auto; padding: 30px 22px; }
+  .placeholder-box .ic { font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); }
+  .placeholder-box strong { color: var(--text); font-weight: 600; font-size: 14px; }
+  .placeholder-box span { font-size: 12.5px; line-height: 1.5; }
+  .detail-back { font-size: 13px; color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .detail-header .id-row { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 16px; font-weight: 600; }
+  .detail-header .meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .detail-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .detail-block h4 { margin: 0 0 10px; font-family: var(--font-display); font-size: 13.5px; font-weight: 600; }
+  @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 13px; flex: none; }
+  .brand .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+  .shell { display: grid; grid-template-columns: 200px 1fr; min-height: 420px; }
+  .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--sidebar-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar .brand { justify-content: flex-start; margin-bottom: 18px; padding: 0 6px; }
+  .sidebar .brand .name { color: var(--sidebar-text); }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; font-weight: 500; color: var(--sidebar-text-muted); }
+  .nav-item.active { background: var(--sidebar-bg-active); color: var(--sidebar-text); }
+  .nav-item .ic { width: 15px; text-align: center; font-family: var(--font-mono); font-size: 12px; }
+  .nav-item.future { opacity: 0.4; font-size: 12.5px; }
+  .sidebar-note { margin-top: auto; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--sidebar-text-muted); border-top: 1px solid var(--sidebar-border); padding-top: 10px; }
+  .shell-main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: relative; }
+  .org-pill { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 5px 11px 5px 9px; }
+  .org-pill .ic { color: var(--accent); }
+  .user-btn { font: inherit; font-size: 13px; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 6px 8px; }
+  .shell-content { flex: 1; padding: 28px 24px; }
+  .notes { display: flex; flex-direction: column; gap: 6px; }
+  .note { font-size: 12.5px; color: var(--text-muted); display: flex; gap: 7px; align-items: flex-start; }
+  .note::before { content: "→"; color: var(--accent); flex: none; font-weight: 600; }
+  footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12.5px; color: var(--text-faint); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer code, .lede code { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  @media (max-width: 640px) { .shell { grid-template-columns: 1fr; } .sidebar { flex-direction: row; overflow-x: auto; padding: 10px; } .sidebar .brand, .sidebar-note { display: none; } }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">F4 · Frontend design preview</div>
+    <h1>Device Detail — info, Groups đang thuộc, Policy đang áp dụng</h1>
+    <p class="lede">Preview 4 trạng thái chính của route <code>/devices/:id</code> + điểm vào mới trên Devices List (row click + menu "⋯"), theo <code>docs/design/F4-frontend.md</code>.</p>
+    <div class="status-row">
+      <span class="pill ok"><span class="dot"></span>SoT — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design DB — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design API — approved</span>
+      <span class="pill pending"><span class="dot"></span>Design Frontend — draft, xem ở đây</span>
+    </div>
+  </header>
+
+  <!-- SCREEN 1: Devices List — row click + ⋯ menu mở -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>Devices List — điểm vào mới</h2>
+      <span class="ref">F4-frontend.md §2 · DeviceListView.vue (mở rộng)</span>
+    </div>
+    <div class="window">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/devices</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item future"><span class="ic">▢</span> Groups</div>
+          <div class="nav-item future"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <div class="table-wrap">
+              <table class="data-table is-clickable">
+                <thead><tr><th>Identifier</th><th>Name</th><th>Platform</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td class="mono">IPHONE-001</td><td>iPhone của Alice</td><td>ios</td>
+                    <td><span class="badge active">active</span></td>
+                    <td class="actions-cell">
+                      <button class="dropdown-trigger">⋯</button>
+                      <div class="dropdown-menu open">
+                        <button class="dropdown-item">Sửa</button>
+                        <button class="dropdown-item">Xem chi tiết</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="mono">PIXEL-777</td><td>Pixel kho thiết bị</td><td>android</td>
+                    <td><span class="badge retired">retired</span></td>
+                    <td class="actions-cell"><button class="dropdown-trigger">⋯</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Click cả dòng (ngoài vùng "⋯") → điều hướng <code>/devices/:id</code> (A9) — <code>DataTable</code> đã có sẵn prop <code>onRowClick</code> từ F2, F4 chỉ truyền vào.</p>
+      <p class="note">Menu "⋯" thay cho nút "Sửa" rời trước đây (OQ-2) — 2 mục "Sửa"/"Xem chi tiết", item "Sửa" disable kèm tooltip khi device retired (dòng 2).</p>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: Device Detail — success, active -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>Device Detail — thành công (active)</h2>
+      <span class="ref">F4-frontend.md §2/§4 · DeviceDetailView.vue</span>
+    </div>
+    <div class="window">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/devices/42</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item future"><span class="ic">▢</span> Groups</div>
+          <div class="nav-item future"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <a href="#" class="detail-back">◀ Quay lại danh sách</a>
+            <div class="detail-header">
+              <div>
+                <div class="id-row">IPHONE-001 <span class="badge active">active</span></div>
+                <div class="meta-row"><span>iPhone của Alice</span><span>ios</span><span>17.4.1</span><span>Last seen: 2026-09-15 10:20</span></div>
+              </div>
+              <button class="btn btn-secondary">Sửa</button>
+            </div>
+            <div class="detail-grid">
+              <div class="detail-block">
+                <h4>Groups đang thuộc</h4>
+                <div class="placeholder-box"><span class="ic">▣</span><span>Chưa thuộc group nào.</span></div>
+              </div>
+              <div class="detail-block">
+                <h4>Policy đang áp dụng</h4>
+                <div class="placeholder-box"><span class="ic">▣</span><span>Chưa có policy nào áp dụng.</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">2 khối Groups/Policy luôn empty tĩnh ở F4 (SoT OQ-1) — không gọi API riêng, F6/F9 quay lại thay nội dung mà không đổi layout này.</p>
+      <p class="note">Nút "Sửa" mở lại nguyên <code>DeviceFormModal</code> từ F3; lưu xong refetch trang này (không refresh list).</p>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: Device Detail — retired -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>Device Detail — retired (bất biến)</h2>
+      <span class="ref">F4-frontend.md §2 · A4</span>
+    </div>
+    <div class="window">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/devices/77</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item future"><span class="ic">▢</span> Groups</div>
+          <div class="nav-item future"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <a href="#" class="detail-back">◀ Quay lại danh sách</a>
+            <div class="detail-header">
+              <div>
+                <div class="id-row">PIXEL-777 <span class="badge retired">retired</span></div>
+                <div class="meta-row"><span>Pixel kho thiết bị</span><span>android</span><span>Last seen: —</span></div>
+              </div>
+              <!-- Nút "Sửa" ẩn hẳn (không render), không phải disable -->
+            </div>
+            <div class="neutral-banner"><span aria-hidden="true">🔒</span><span>Thiết bị đã retired — không thể chỉnh sửa.</span></div>
+            <div class="detail-grid" style="margin-top:16px">
+              <div class="detail-block"><h4>Groups đang thuộc</h4><div class="placeholder-box"><span class="ic">▣</span><span>Chưa thuộc group nào.</span></div></div>
+              <div class="detail-block"><h4>Policy đang áp dụng</h4><div class="placeholder-box"><span class="ic">▣</span><span>Chưa có policy nào áp dụng.</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Banner trung tính (<code>.neutral-banner</code>, mới) — không dùng đỏ/vàng vì "retired" là trạng thái ổn định, không phải lỗi.</p>
+    </div>
+  </section>
+
+  <!-- SCREEN 4: Device Detail — not found (404, cross-org hoặc id sai) -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>Device Detail — không tìm thấy (404)</h2>
+      <span class="ref">F4-frontend.md §4 · A1/A2/A3</span>
+    </div>
+    <div class="window">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/devices/999999</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item future"><span class="ic">▢</span> Groups</div>
+          <div class="nav-item future"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <div class="placeholder-box page-level">
+              <span class="ic">▣</span>
+              <strong>Không tìm thấy thiết bị</strong>
+              <span>Thiết bị này không tồn tại hoặc bạn không có quyền xem.</span>
+              <button class="btn btn-secondary" style="margin-top:6px">◀ Quay lại danh sách</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Dùng chung 1 UI cho cả 3 case (khác org / không tồn tại / id sai định dạng) — không lộ lý do cụ thể (<code>CLAUDE.md</code> §4).</p>
+      <p class="note">Tái dùng nguyên <code>EmptyState.vue</code>, không tạo component "NotFound" riêng.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Nguồn: <code>docs/design/F4-frontend.md</code>, <code>UI_UX_design.md</code> §5</span>
+    <span>Chưa nối API thật</span>
+  </footer>
+</div>

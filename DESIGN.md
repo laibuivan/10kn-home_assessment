@@ -244,3 +244,77 @@ chỉ đọc đúng tài liệu nguồn đã approve của bước trước, kh�
     trước khi tin `body.error` — mọi 5xx luôn rơi về `genericFallback` bất kể
     body chứa gì, không đổi hành vi cho 401/404.
 
+### F4 (Device detail — info, group đang thuộc, policy đang áp dụng)
+- **AI làm**: toàn bộ vòng đời — SoT, 3 bản thiết kế + preview HTML, plan (16
+  task/4 wave), acceptance test (15 scenario), action `show`/`DevicePolicy
+  #show?`/route mới, và toàn bộ phía FE (`ActionsMenu.vue`,
+  `DeviceDetailView.vue`, mở rộng `router/index.ts`/`stores/devices.ts`/
+  `api/devices.ts`/`utils/apiError.ts`), RSpec + Vitest tương ứng.
+- **Con người ủy quyền cho AI tự approve toàn bộ gate** (SoT → Design DB/API/
+  FE → Plan) **và tự chạy tiếp implement/gate/PR** trong phiên làm việc này
+  (không dừng lại chờ review từng bước như F0–F3) — mọi Open Question (OQ-1
+  đến OQ-6 ở SoT) được AI chọn theo đúng phương án khuyến nghị đã tự đề xuất.
+  Quyết định phạm vi quan trọng nhất là OQ-1: tại thời điểm F4 được build,
+  `docs/backlog.md` xếp F5–F9 (Group/Policy) **sau** F4 — nên 2 khối "Groups
+  đang thuộc"/"Policy đang áp dụng" chỉ dựng khung UI tĩnh (luôn empty, không
+  gọi API, không bịa schema Group/Policy hộ F5/F7), để F6/F9 sau này thay nội
+  dung mà không cần đổi route/layout.
+- **Tự thiết kế (không có trong PRD, phải tự quyết định và ghi rõ)**:
+  - Đổi action "Sửa" trên Devices List từ nút rời (F3) sang menu "⋯"
+    (`ActionsMenu.vue`, component dùng chung mới) chứa cả "Sửa" và "Xem chi
+    tiết" (OQ-2) — vì `UI_UX_design.md` §4/§6.1 đã vẽ sẵn pattern này cho cả
+    Devices lẫn Groups list, xây 1 lần dùng lại được ngay khi F5/F7 tới.
+  - Cơ chế "quay lại danh sách giữ đúng filter/trang" (OQ-5): 1 field
+    `lastListLocation` trên Pinia store (không phải `sessionStorage`/
+    `router.back()`) — `DeviceListView` tự ghi lại full path mỗi khi URL đổi,
+    `DeviceDetailView` đọc lại, fallback `/devices` nếu chưa từng ghi (vào
+    thẳng bằng URL) — đơn giản hơn dựa vào lịch sử điều hướng của trình
+    duyệt (vốn có thể không đáng tin nếu user mở tab mới/refresh).
+  - Không thêm field `groups`/`applied_policies` (kể cả mảng rỗng) vào
+    response `GET /devices/:id` (OQ-6) — tránh bịa 1 contract mà F6/F8/F9 rất
+    có thể cần thiết kế lại khác đi (vd cần field `source`/`overridden_by`).
+- **Chỗ AI sai đã tự phát hiện và sửa (trước khi báo Done)**:
+  - Xác nhận RED cho scenario "xem device thuộc org khác trả 404" ban đầu
+    **pass nhầm** trước khi code: vì route `GET /devices/:id` chưa tồn tại,
+    Rails tự trả `404 Blocked`/routing-error cũng mang status 404, trùng
+    ngẫu nhiên với kỳ vọng của scenario dù chưa hề có logic org-scope nào
+    chạy. Phát hiện bằng cách so khớp toàn bộ 15 scenario theo từng dòng thất
+    bại thay vì chỉ đọc số lượng pass/fail. Sửa bằng cách thêm assertion thứ
+    2 kiểm tra đúng body `{"error": "Not found"}` (envelope thật của
+    `ApplicationController#render_not_found`) — **không sửa để test pass dễ
+    hơn**, mà làm assertion chặt hơn để RED đúng lý do, rồi mới code.
+  - Đổi action "Sửa" sang menu "⋯" (trên) phá vỡ 2 test đã xanh từ trước:
+    acceptance scenario cuối của F3 (nút "Sửa" disabled + tooltip) và 4 test
+    Vitest của `DeviceListView.spec.ts` — cả 2 đều trỏ thẳng
+    `[data-testid=edit-device-button]`/`edit-device-tooltip` (không còn tồn
+    tại độc lập ngoài menu). Phát hiện ngay khi chạy lại full Playwright +
+    Vitest suite trước khi báo Done (không chỉ chạy suite của riêng F4). Sửa
+    bằng cách cập nhật đúng 2 file test đó theo UI mới (mở menu "⋯" trước khi
+    thao tác) — hành vi nghiệp vụ (disable + tooltip khi retired) không đổi,
+    chỉ đổi đường DOM để chạm tới nó, nên đây là cập nhật hợp lệ theo
+    `CLAUDE.md` §3 (khác với việc sửa test của chính feature đang làm để nó
+    pass).
+  - `docker compose exec api bundle exec rspec` chạy nhầm `RAILS_ENV=development`
+    (biến môi trường container set sẵn cho dev server), khiến
+    `ActionDispatch::HostAuthorization` chặn toàn bộ request test bằng
+    `403 Blocked hosts` thay vì lỗi nghiệp vụ thật — làm 61/71 spec fail
+    không liên quan gì tới code F4. Xác nhận bằng `git stash` để chứng minh
+    lỗi có sẵn trên nhánh F3 gốc (không phải regression của F4), rồi chạy lại
+    với `-e RAILS_ENV=test` tường minh — không sửa code sản phẩm.
+
+**Follow-up sau PR #7 (cùng F4, trước khi merge)**: user yêu cầu bổ sung
+"xem chi tiết Device thì cập nhật `last_seen_at`" — không có trong PRD, đảo
+lại 1 quyết định "ngoài phạm vi" mà chính F3 đã ghi (`docs/sot/F3-device-create-edit.md`
+§3: "F3 không tự bịa thêm 1 cơ chế cập nhật `last_seen_at`"). Trước khi code,
+AI chủ động hỏi lại 1 câu làm rõ (không tự quyết) vì đụng thẳng invariant
+"retired bất biến" (`CLAUDE.md` §4, mục bị chấm nặng nhất): device `retired`
+có nên vẫn bị đổi `last_seen_at` khi xem không? Người dùng chọn **không** —
+giữ tuyệt đối invariant. Implement theo TDD đúng thứ tự (`CLAUDE.md` §3 rule
+4): RSpec model spec cho `Device#record_seen!` trước (RED), rồi code
+(`update_column`, bypass hẳn callback/validate — không dùng `update` để
+tránh mọi rủi ro vô tình chạm lại callback retired-block), rồi request spec,
+rồi bổ sung 2 scenario + step definition vào `.feature` đã có, rồi ghi lại
+quyết định vào SoT §6/§11/§12 (OQ-7) + `docs/design/F4-{db,api}.md` — không
+bỏ qua tài liệu dù đây là thay đổi nhỏ. Toàn bộ 4 gate chạy lại xanh trước
+khi push tiếp lên PR #7 (không tạo PR mới).
+

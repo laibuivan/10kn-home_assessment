@@ -31,8 +31,10 @@ const API_URL = process.env.API_URL ?? 'http://localhost:3010'
  *   [data-testid=device-form-cancel]                    "Hủy" cancel button
  *   [data-testid=device-form-banner]                    banner for `errors.base` (retired-block) / infra-error message
  *   [data-testid=field-error-<field>]                   field-level error text under a given field, e.g. field-error-identifier
- *   [data-testid=devices-table] [data-testid=device-row] [data-testid=edit-device-button]   "Sửa" button per row (added to F2's device-row)
- *   [data-testid=devices-table] [data-testid=device-row] [data-testid=edit-device-tooltip]  wrapping <span title="..."> around the disabled "Sửa" button on a retired row
+ *   [data-testid=devices-table] [data-testid=device-row] [data-testid=actions-menu-trigger]      "⋯" trigger per row
+ *   [data-testid=devices-table] [data-testid=device-row] [data-testid=device-action-edit]        "Sửa" item inside the row's actions menu (superseded by
+ *       F4-frontend.md §1/§2, OQ-2 — was a standalone [data-testid=edit-device-button] until F4)
+ *   [data-testid=devices-table] [data-testid=device-row] [data-testid=device-action-edit-tooltip] wrapping <span title="..."> around the disabled "Sửa" item on a retired row
  *   [data-testid=toast]                                 one rendered toast item (ToastContainer, mounted once in AppShell)
  */
 
@@ -164,6 +166,16 @@ function deviceRow(page: Page, identifier: string) {
   return page.locator('[data-testid=devices-table] [data-testid=device-row]').filter({ hasText: identifier })
 }
 
+/**
+ * "Sửa" now lives inside the row's "⋯" ActionsMenu, not as a standalone
+ * button (F4-frontend.md §1/§2, OQ-2) — open the menu, then click the item.
+ */
+async function clickEditAction(page: Page, identifier: string) {
+  const row = deviceRow(page, identifier)
+  await row.locator('[data-testid=actions-menu-trigger]').click()
+  await row.locator('[data-testid=device-action-edit]').click()
+}
+
 // ================= Given (fixtures) =================
 
 Given('I am logged in as an active user of organization {string}', async ({ page, world }, label: string) => {
@@ -262,11 +274,16 @@ When('I create a new device with identifier {string}, name {string} and platform
   world.lastBody = await safeJson(res)
 })
 
+When('I open the row actions menu for that device', async ({ page, world }) => {
+  const identifier = world.lastCreatedIdentifier!
+  await deviceRow(page, identifier).locator('[data-testid=actions-menu-trigger]').click()
+})
+
 When(
   'I edit that device changing its name, platform and OS version',
   async ({ page, world }) => {
     const identifier = world.lastCreatedIdentifier!
-    await deviceRow(page, identifier).locator('[data-testid=edit-device-button]').click()
+    await clickEditAction(page, identifier)
     await page.locator('[data-testid=device-form-modal]').waitFor({ state: 'visible', timeout: 5_000 })
     await page.locator('[data-testid=device-form-name]').fill('Updated Name')
     await page.locator('[data-testid=device-form-platform]').selectOption('android')
@@ -281,7 +298,7 @@ When(
 
 When('I edit that device changing its status to {string}', async ({ page, world }, status: string) => {
   const identifier = world.lastCreatedIdentifier!
-  await deviceRow(page, identifier).locator('[data-testid=edit-device-button]').click()
+  await clickEditAction(page, identifier)
   await page.locator('[data-testid=device-form-modal]').waitFor({ state: 'visible', timeout: 5_000 })
   const responseWait = waitForDeviceWriteResponse(page, 'PATCH')
   await page.locator('[data-testid=device-form-status]').selectOption(status)
@@ -507,14 +524,14 @@ Then('the data I entered is still there', async ({ page, world }) => {
   await expect(page.locator('[data-testid=device-form-identifier]')).toHaveValue(identifier, { timeout: 5_000 })
 })
 
-Then('the {string} button for that device is disabled', async ({ page, world }, _label: string) => {
+Then('the {string} action for that device is disabled', async ({ page, world }, _label: string) => {
   const identifier = world.lastCreatedIdentifier!
-  await expect(deviceRow(page, identifier).locator('[data-testid=edit-device-button]')).toBeDisabled({ timeout: 5_000 })
+  await expect(deviceRow(page, identifier).locator('[data-testid=device-action-edit]')).toBeDisabled({ timeout: 5_000 })
 })
 
-Then('I see the tooltip {string} when hovering over that button', async ({ page, world }, tooltip: string) => {
+Then('I see the tooltip {string} when hovering over that action', async ({ page, world }, tooltip: string) => {
   const identifier = world.lastCreatedIdentifier!
-  await expect(deviceRow(page, identifier).locator('[data-testid=edit-device-tooltip]')).toHaveAttribute('title', tooltip, {
+  await expect(deviceRow(page, identifier).locator('[data-testid=device-action-edit-tooltip]')).toHaveAttribute('title', tooltip, {
     timeout: 5_000,
   })
 })

@@ -10,6 +10,8 @@ import StatusBadge from '../../components/StatusBadge.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
 import DeviceFormModal from '../../components/DeviceFormModal.vue'
+import ActionsMenu from '../../components/ActionsMenu.vue'
+import type { ActionsMenuItem } from '../../components/ActionsMenu.vue'
 import { useDevicesStore } from '../../stores/devices'
 import { useToastStore } from '../../stores/toast'
 import {
@@ -109,6 +111,35 @@ function closeModal() {
   showModal.value = false
 }
 
+// ---------- Row navigation to Device Detail (F4-frontend.md §1/§2) ----------
+function viewDetail(device: Device) {
+  router.push(`/devices/${device.id}`)
+}
+
+/**
+ * "⋯" menu per row (replaces F3's standalone "Sửa" button — OQ-2): "Sửa"
+ * disabled + tooltip on a retired device (same rule F3 applied to the old
+ * button), "Xem chi tiết" always enabled. Order matches UI_UX_design.md §4.
+ */
+function rowActions(device: Device): ActionsMenuItem[] {
+  return [
+    {
+      key: 'edit',
+      label: 'Sửa',
+      onClick: () => openEditModal(device),
+      disabled: device.status === 'retired',
+      disabledTitle: RETIRED_EDIT_BLOCKED_MESSAGE,
+      testId: 'device-action-edit',
+    },
+    {
+      key: 'view',
+      label: 'Xem chi tiết',
+      onClick: () => viewDetail(device),
+      testId: 'device-action-view',
+    },
+  ]
+}
+
 function onSaved(payload: { mode: 'create' | 'edit'; message: string }) {
   closeModal()
   toastStore.push(payload.message)
@@ -175,6 +206,17 @@ watch(
   activeQuery,
   () => {
     load()
+  },
+  { immediate: true },
+)
+
+// Remembers "where the list was" so Device Detail's "◀ Quay lại danh sách"
+// can restore the exact filter/page (SoT F4 OQ-5) — not a computed, since it
+// must persist past navigating away from this view entirely.
+watch(
+  () => route.fullPath,
+  (fullPath) => {
+    store.lastListLocation = fullPath
   },
   { immediate: true },
 )
@@ -250,6 +292,7 @@ watch(
         :rows="store.devices"
         :row-key="(row: Device) => row.id"
         :loading="store.loading"
+        :on-row-click="viewDetail"
         test-id="devices-table"
         row-test-id="device-row"
       >
@@ -257,25 +300,9 @@ watch(
           <StatusBadge :status="(row as Device).status" />
         </template>
         <template #cell-actions="{ row }">
-          <span
-            v-if="(row as Device).status === 'retired'"
-            class="tooltip-wrap"
-            data-testid="edit-device-tooltip"
-            :title="RETIRED_EDIT_BLOCKED_MESSAGE"
-          >
-            <button type="button" class="btn btn-secondary" data-testid="edit-device-button" disabled>
-              Sửa
-            </button>
+          <span @click.stop>
+            <ActionsMenu :items="rowActions(row as Device)" />
           </span>
-          <button
-            v-else
-            type="button"
-            class="btn btn-secondary"
-            data-testid="edit-device-button"
-            @click="openEditModal(row as Device)"
-          >
-            Sửa
-          </button>
         </template>
       </DataTable>
 

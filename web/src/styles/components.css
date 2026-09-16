@@ -165,3 +165,26 @@ body {
   .sidebar { flex-direction: row; overflow-x: auto; padding: 10px; }
   .sidebar .brand, .sidebar-note { display: none; }
 }
+
+/* ---------- ActionsMenu ("⋯" row actions, F4) ---------- */
+.dropdown-trigger { font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+.dropdown-trigger:hover { background: var(--surface-2); }
+.dropdown-menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 168px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15, 23, 33, 0.12); padding: 5px; z-index: 6; text-align: left; }
+.dropdown-menu.open { display: block; }
+.dropdown-item { width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: none; border: none; border-radius: 6px; padding: 7px 9px; cursor: pointer; display: block; }
+.dropdown-item:hover:not(:disabled) { background: var(--surface-2); }
+.dropdown-item:disabled { color: var(--text-faint); cursor: not-allowed; }
+
+/* ---------- Device Detail (F4) ---------- */
+.detail-back { font-size: 13px; color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.detail-back:hover { color: var(--text); }
+.detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+.detail-header .id-row { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 16px; font-weight: 600; }
+.detail-header .meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.detail-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+.detail-block h4 { margin: 0 0 10px; font-family: var(--font-display); font-size: 13.5px; font-weight: 600; }
+.neutral-banner { color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; margin-bottom: 16px; }
+@media (max-width: 640px) {
+  .detail-grid { grid-template-columns: 1fr; }
+}

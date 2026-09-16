@@ -21,6 +21,26 @@ class Device < ApplicationRecord
   validates :name, presence: true
   validates :platform, :status, presence: true
 
+  # Viewing a device's detail page bumps `last_seen_at` to now (F4 follow-up
+  # — not in PRD, a deliberate product decision made after F4 shipped, see
+  # DESIGN.md §AI). Uses `update_column` — a direct single-column SQL write
+  # that skips validations *and* callbacks entirely — rather than `update`,
+  # for two reasons:
+  #   1. "Retired bất biến" (CLAUDE.md §4) must hold absolutely: the caller
+  #      guards with `retired?` below, but even if it didn't, going through
+  #      `update` would either get blocked by `block_all_changes_when_retired`
+  #      (fine) or — worse — silently succeed for a retired device if that
+  #      guard were ever refactored away, since this call site has nothing
+  #      to do with the "sửa" flow that callback exists to protect.
+  #   2. This is telemetry bookkeeping, not a user edit — it should not bump
+  #      `updated_at` (which `update`/`touch` would) or re-run presence/
+  #      uniqueness validations for a single already-valid column.
+  def record_seen!
+    return if retired?
+
+    update_column(:last_seen_at, Time.current)
+  end
+
   private
 
   # "Retired bất biến" (CLAUDE.md §4) — status_was reflects the persisted

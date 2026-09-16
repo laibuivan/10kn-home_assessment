@@ -40,6 +40,10 @@ RSpec.configure do |config|
     Rails.root.join('spec/fixtures')
   ]
   config.include FactoryBot::Syntax::Methods
+  # `freeze_time`/`travel`/`travel_to` — used by Device#record_seen! specs
+  # (F4) to assert exact last_seen_at/updated_at values without a real clock
+  # race.
+  config.include ActiveSupport::Testing::TimeHelpers
 
   # If you're not using ActiveRecord, or you'd prefer not to run each of your
   # examples within a transaction, remove the following line or assign false

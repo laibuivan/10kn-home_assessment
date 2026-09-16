@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import LoginView from '../views/LoginView.vue'
 import DeviceListView from '../views/devices/DeviceListView.vue'
+import DeviceDetailView from '../views/devices/DeviceDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -9,6 +10,7 @@ const router = createRouter({
     { path: '/', redirect: '/devices' },
     { path: '/login', name: 'login', component: LoginView },
     { path: '/devices', name: 'devices', component: DeviceListView },
+    { path: '/devices/:id', name: 'device-detail', component: DeviceDetailView, props: true },
   ],
 })
 

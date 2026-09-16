@@ -42,6 +42,16 @@ export function extractErrorMessage(error: unknown, fallback: string): string {
  * user. No usable body at all (network/timeout, no JSON) also falls back
  * to `genericFallback`.
  */
+/**
+ * True only for a real 404 response — used by `DeviceDetailView` to render
+ * the full-page "not found" state instead of the generic retry banner
+ * (F4-frontend.md §3/§4). Distinct from `extractErrorMessage`/
+ * `extractFormErrors`, which never need to single out 404 specifically.
+ */
+export function isNotFoundError(error: unknown): boolean {
+  return (error as ErrorWithResponse | undefined)?.response?.status === 404
+}
+
 export function extractFormErrors(
   error: unknown,
   genericFallback: string,

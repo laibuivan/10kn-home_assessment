@@ -7,7 +7,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       resources :sessions, only: [ :create ]
       resource :me, only: [ :show ], controller: "me"
-      resources :devices, only: [ :index, :create, :update ]
+      resources :devices, only: [ :index, :show, :create, :update ]
     end
   end
 end

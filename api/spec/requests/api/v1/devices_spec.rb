@@ -342,6 +342,119 @@ RSpec.describe "GET /api/v1/devices", type: :request do
   end
 end
 
+RSpec.describe "GET /api/v1/devices/:id", type: :request do
+  let(:organization) { create(:organization, name: "Acme Inc.") }
+  let(:user) { create(:user, organization: organization) }
+  let(:other_organization) { create(:organization, name: "Globex Corp.") }
+
+  def token_for(a_user)
+    JsonWebToken.encode(user_id: a_user.id, organization_id: a_user.organization_id)
+  end
+
+  def get_device(id, token: token_for(user))
+    headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+    get "/api/v1/devices/#{id}", headers: headers
+  end
+
+  def body
+    response.parsed_body
+  end
+
+  describe "authentication" do
+    it "rejects a request with no Authorization header" do
+      device = create(:device, organization: organization)
+
+      get_device(device.id, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "rejects an expired token" do
+      device = create(:device, organization: organization)
+      expired = JsonWebToken.encode({ user_id: user.id, organization_id: user.organization_id }, -1)
+
+      get_device(device.id, token: expired)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe "viewing successfully (A1 main flow)" do
+    it "returns the device's full attributes, same shape as the list item" do
+      device = create(:device, organization: organization, identifier: "IPHONE-001", name: "Alice's iPhone", platform: :ios, os_version: "17.4.1", status: :active)
+
+      get_device(device.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["device"]).to include(
+        "id" => device.id,
+        "identifier" => "IPHONE-001",
+        "name" => "Alice's iPhone",
+        "platform" => "ios",
+        "os_version" => "17.4.1",
+        "status" => "active"
+      )
+    end
+
+    it "bumps last_seen_at to now and reflects it in the response (F4 follow-up)" do
+      device = create(:device, organization: organization, status: :active, last_seen_at: 3.days.ago)
+
+      travel_to Time.current.change(usec: 0) do
+        get_device(device.id)
+
+        expect(body["device"]["last_seen_at"]).to eq(Time.current.iso8601(3))
+        expect(device.reload.last_seen_at).to be_within(1.second).of(Time.current)
+      end
+    end
+
+    it "does NOT bump last_seen_at for a retired device (CLAUDE.md §4 'retired bất biến')" do
+      device = create(:device, organization: organization, status: :retired, last_seen_at: nil)
+
+      get_device(device.id)
+
+      expect(body["device"]["last_seen_at"]).to be_nil
+      expect(device.reload.last_seen_at).to be_nil
+    end
+
+    it "does not include any groups/applied_policies field (SoT F4 OQ-6)" do
+      device = create(:device, organization: organization)
+
+      get_device(device.id)
+
+      expect(body["device"]).not_to have_key("groups")
+      expect(body["device"]).not_to have_key("applied_policies")
+    end
+  end
+
+  describe "cross-organization (SoT F4 A1, CLAUDE.md §4)" do
+    it "returns 404, not 403, when the device belongs to another organization" do
+      device = create(:device, organization: other_organization, identifier: "IPHONE-777")
+
+      get_device(device.id)
+
+      expect(response).to have_http_status(:not_found)
+      expect(body["error"]).to eq("Not found")
+    end
+  end
+
+  describe "nonexistent device (SoT F4 A2)" do
+    it "returns 404 for an id that does not exist" do
+      get_device(999_999_999)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "malformed id (SoT F4 A3)" do
+    it "returns 404, not a 500, for a non-integer id" do
+      get_device("not-a-number")
+
+      expect(response).to have_http_status(:not_found)
+      expect(body["error"]).to eq("Not found")
+    end
+  end
+end
+
 RSpec.describe "POST /api/v1/devices", type: :request do
   let(:organization) { create(:organization, name: "Acme Inc.") }
   let(:user) { create(:user, organization: organization) }

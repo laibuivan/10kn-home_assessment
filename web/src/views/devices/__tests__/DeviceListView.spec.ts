@@ -3,6 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { setActivePinia, createPinia } from 'pinia'
 import DeviceListView from '../DeviceListView.vue'
+import { useDevicesStore } from '../../../stores/devices'
 import { fetchDeviceList, createDevice, updateDevice } from '../../../api/devices'
 import type { Device, DeviceListResponse } from '../../../types/device'
 
@@ -48,6 +49,7 @@ function buildRouter(): Router {
       { path: '/', redirect: '/devices' },
       { path: '/login', name: 'login', component: { template: '<div />' } },
       { path: '/devices', name: 'devices', component: DeviceListView },
+      { path: '/devices/:id', name: 'device-detail', component: { template: '<div />' } },
     ],
   })
 }
@@ -283,6 +285,38 @@ describe('DeviceListView', () => {
     expect(wrapper.find('[data-field=identifier]').text()).toBe('NEW-1')
   })
 
+  describe('navigation to Device Detail (F4)', () => {
+    it('navigates to the detail page when clicking a row outside the actions cell', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device({ id: 7, identifier: 'IOS-0007' })]))
+      const { wrapper, router } = await mountView('/devices')
+
+      await wrapper.find('[data-field=identifier]').trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/devices/7')
+    })
+
+    it('navigates to the detail page via the "Xem chi tiết" row action, without also triggering the row click', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device({ id: 8, identifier: 'IOS-0008' })]))
+      const { wrapper, router } = await mountView('/devices')
+
+      await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
+      await wrapper.find('[data-testid=device-action-view]').trigger('click')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/devices/8')
+    })
+
+    it('records the current URL as the last list location whenever the filter/page changes', async () => {
+      vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device()]))
+      const { router } = await mountView('/devices?platform=ios&page=2')
+      const store = useDevicesStore()
+
+      expect(store.lastListLocation).toBe(router.currentRoute.value.fullPath)
+      expect(store.lastListLocation).toContain('platform=ios')
+    })
+  })
+
   describe('create/edit modal (F3)', () => {
     it('opens the create modal from the list-head "+ Thêm Device" button', async () => {
       vi.mocked(fetchDeviceList).mockResolvedValue(listResponse([device()]))
@@ -307,7 +341,8 @@ describe('DeviceListView', () => {
       const { wrapper } = await mountView('/devices')
       const callsBeforeEdit = vi.mocked(fetchDeviceList).mock.calls.length
 
-      await wrapper.find('[data-testid=edit-device-button]').trigger('click')
+      await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
+      await wrapper.find('[data-testid=device-action-edit]').trigger('click')
 
       expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(true)
       expect((wrapper.find('[data-testid=device-form-identifier]').element as HTMLInputElement).value).toBe(
@@ -324,21 +359,23 @@ describe('DeviceListView', () => {
         listResponse([device({ identifier: 'IOS-0004', status: 'retired' })]),
       )
       const { wrapper } = await mountView('/devices')
+      await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
 
-      const editButton = wrapper.find('[data-testid=edit-device-button]')
-      expect(editButton.attributes('disabled')).toBeDefined()
+      const editItem = wrapper.find('[data-testid=device-action-edit]')
+      expect(editItem.attributes('disabled')).toBeDefined()
 
-      const tooltip = wrapper.find('[data-testid=edit-device-tooltip]')
+      const tooltip = wrapper.find('[data-testid=device-action-edit-tooltip]')
       expect(tooltip.attributes('title')).toBe('Thiết bị đã retired, không thể sửa')
     })
 
-    it('does not open a modal when clicking the disabled "Sửa" button on a retired row', async () => {
+    it('does not open a modal when clicking the disabled "Sửa" item on a retired row', async () => {
       vi.mocked(fetchDeviceList).mockResolvedValue(
         listResponse([device({ identifier: 'IOS-0004', status: 'retired' })]),
       )
       const { wrapper } = await mountView('/devices')
 
-      await wrapper.find('[data-testid=edit-device-button]').trigger('click')
+      await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
+      await wrapper.find('[data-testid=device-action-edit]').trigger('click')
 
       expect(wrapper.find('[data-testid=device-form-modal]').exists()).toBe(false)
     })
@@ -374,7 +411,8 @@ describe('DeviceListView', () => {
       })
       const { wrapper } = await mountView('/devices')
 
-      await wrapper.find('[data-testid=edit-device-button]').trigger('click')
+      await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
+      await wrapper.find('[data-testid=device-action-edit]').trigger('click')
       await wrapper.find('[data-testid=device-form-name]').setValue('Updated Name')
       await wrapper.find('form').trigger('submit')
       await flushPromises()
