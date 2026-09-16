@@ -18,6 +18,13 @@ const props = withDefaults(
   defineProps<{
     title: string
     submitting?: boolean
+    /**
+     * Extra, caller-owned reason to block submission (F6: "nothing selected
+     * yet"). Additive to `submitting` and separate from it on purpose — a
+     * disabled-because-nothing-to-send button must NOT show the in-flight
+     * spinner, which is what reusing `submitting` for this would do.
+     */
+    submitDisabled?: boolean
     baseError?: string | null
     submitLabel?: string
     cancelLabel?: string
@@ -28,6 +35,7 @@ const props = withDefaults(
   }>(),
   {
     submitting: false,
+    submitDisabled: false,
     baseError: null,
     submitLabel: 'Lưu',
     cancelLabel: 'Hủy',
@@ -84,7 +92,7 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
           type="submit"
           class="btn btn-primary"
           :data-testid="submitTestId"
-          :disabled="submitting"
+          :disabled="submitting || submitDisabled"
           :data-busy="submitting"
         >
           <span class="btn-label">{{ submitLabel }}</span>

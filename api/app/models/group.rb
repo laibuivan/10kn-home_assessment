@@ -1,12 +1,20 @@
 class Group < ApplicationRecord
   belongs_to :organization
 
-  # NOTE (carry-over contract closed at F5 — docs/design/F5-db.md §4a):
-  # F6 must add `has_many :group_memberships, dependent: :delete_all` and F8
-  # `has_many :policy_assignments, dependent: :delete_all` here. They are not
-  # declared now because those tables/models do not exist yet (Rails would
-  # raise NameError on boot). GroupsController#destroy already calls
-  # `destroy!`, so it will pick those up without a single line of change.
+  # Half of the carry-over contract F5 opened (docs/design/F5-db.md §4a) is
+  # paid here; F8 still owes `has_many :policy_assignments, dependent:
+  # :delete_all` once that table exists. GroupsController#destroy has called
+  # `destroy!` since F5 precisely so this line starts working with no change
+  # there (SoT F6 A20: deleting a group must leave zero orphaned join rows,
+  # and must not delete a single Device).
+  #
+  # `:delete_all`, not `:destroy` — a join row carries no business callback,
+  # and a 10.000-member group would otherwise instantiate 10.000 Ruby objects
+  # to issue 10.000 DELETEs instead of one statement (docs/design/F6-db.md §1).
+  # Rails still wraps that DELETE and the group's own DELETE in one
+  # transaction, so no manual transaction here.
+  has_many :group_memberships, dependent: :delete_all
+  has_many :devices, through: :group_memberships
 
   # One constant, two call sites: the uniqueness validation below and the
   # RecordNotUnique rescue in GroupsController. The client must not be able

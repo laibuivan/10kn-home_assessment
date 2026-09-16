@@ -340,6 +340,145 @@ RSpec.describe "GET /api/v1/devices", type: :request do
       expect(body["meta"]["total_count"]).to eq(1)
     end
   end
+
+  # F6 added `q` so the "+ Thêm device vào group" picker can search through
+  # this same endpoint (docs/design/F6-api.md §2.5). Same rules the Group
+  # search settled at F5: ILIKE, sanitize_sql_like, and no 422 branch at all.
+  describe "search by identifier or name (F6, A22)" do
+    it "matches a partial identifier, case-insensitively" do
+      match = create(:device, organization: organization, identifier: "IPHONE-0042", name: "Alice")
+      create(:device, organization: organization, identifier: "PIXEL-0001", name: "Bob")
+
+      get_devices({ q: "iphone" })
+
+      expect(body["devices"].map { |d| d["id"] }).to eq([ match.id ])
+    end
+
+    it "matches a partial name, case-insensitively" do
+      match = create(:device, organization: organization, identifier: "PIXEL-0001", name: "Alice's phone")
+      create(:device, organization: organization, identifier: "PIXEL-0002", name: "Bob's phone")
+
+      get_devices({ q: "ALICE" })
+
+      expect(body["devices"].map { |d| d["id"] }).to eq([ match.id ])
+    end
+
+    it "returns devices matching on EITHER column in one response" do
+      by_identifier = create(:device, organization: organization, identifier: "SALES-1", name: "Laptop", created_at: 2.days.ago)
+      by_name = create(:device, organization: organization, identifier: "X-9", name: "Sales laptop", created_at: 1.day.ago)
+      create(:device, organization: organization, identifier: "X-8", name: "Support laptop")
+
+      get_devices({ q: "sales" })
+
+      expect(body["devices"].map { |d| d["id"] }).to contain_exactly(by_identifier.id, by_name.id)
+    end
+
+    it "returns an empty list with a zeroed total when nothing matches (A22)" do
+      create(:device, organization: organization, identifier: "PIXEL-0001", name: "Bob")
+
+      get_devices({ q: "nothing-like-this" })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["devices"]).to eq([])
+      expect(body["meta"]["total_count"]).to eq(0)
+    end
+
+    it "treats a blank q as no filter at all, exactly like F2" do
+      create_list(:device, 3, organization: organization)
+
+      get_devices({ q: "" })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["meta"]["total_count"]).to eq(3)
+    end
+
+    it "treats a whitespace-only q as no filter, not as an error" do
+      create_list(:device, 3, organization: organization)
+
+      get_devices({ q: "   " })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["meta"]["total_count"]).to eq(3)
+    end
+
+    it "trims q before matching" do
+      match = create(:device, organization: organization, identifier: "IPHONE-0042")
+
+      get_devices({ q: "  iphone  " })
+
+      expect(body["devices"].map { |d| d["id"] }).to eq([ match.id ])
+    end
+
+    it "never leaks another organization's devices through the search" do
+      create(:device, organization: other_organization, identifier: "IPHONE-0042")
+
+      get_devices({ q: "iphone" })
+
+      expect(body["devices"]).to eq([])
+      expect(body["meta"]["total_count"]).to eq(0)
+    end
+
+    it "combines the search with the platform filter" do
+      match = create(:device, :ios, organization: organization, identifier: "SALES-1")
+      create(:device, :android, organization: organization, identifier: "SALES-2")
+
+      get_devices({ q: "sales", platform: "ios" })
+
+      expect(body["devices"].map { |d| d["id"] }).to eq([ match.id ])
+    end
+
+    it "treats % typed by the user as a literal percent sign, not a wildcard" do
+      literal = create(:device, organization: organization, name: "Battery 100% ok")
+      create(:device, organization: organization, name: "Battery low")
+
+      get_devices({ q: "100%" })
+
+      expect(body["devices"].map { |d| d["id"] }).to eq([ literal.id ])
+    end
+
+    it "does not turn a lone % into 'match everything'" do
+      create_list(:device, 3, organization: organization, name: "Plain")
+
+      get_devices({ q: "%" })
+
+      expect(body["meta"]["total_count"]).to eq(0)
+    end
+
+    it "treats _ typed by the user as a literal underscore, not a single-char wildcard" do
+      literal = create(:device, organization: organization, identifier: "A_1")
+      create(:device, organization: organization, identifier: "AB1")
+
+      get_devices({ q: "A_1" })
+
+      expect(body["devices"].map { |d| d["id"] }).to eq([ literal.id ])
+    end
+
+    it "treats a SQL-injection attempt as an ordinary search string" do
+      create_list(:device, 3, organization: organization)
+
+      get_devices({ q: "' OR 1=1 --" })
+
+      expect(response).to have_http_status(:ok)
+      expect(body["devices"]).to eq([])
+      expect(body["meta"]["total_count"]).to eq(0)
+    end
+
+    it "still requires a token (A30)" do
+      create(:device, organization: organization, identifier: "IPHONE-0042")
+
+      get_devices({ q: "iphone" }, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "never adds a groups key to list rows, which would be an N+1 (docs/design/F6-api.md §2.6)" do
+      create(:device, organization: organization, identifier: "IPHONE-0042")
+
+      get_devices({ q: "iphone" })
+
+      expect(body["devices"].first).not_to have_key("groups")
+    end
+  end
 end
 
 RSpec.describe "GET /api/v1/devices/:id", type: :request do
@@ -416,13 +555,87 @@ RSpec.describe "GET /api/v1/devices/:id", type: :request do
       expect(device.reload.last_seen_at).to be_nil
     end
 
-    it "does not include any groups/applied_policies field (SoT F4 OQ-6)" do
+    # F4 asserted the opposite here (SoT F4 OQ-6 deferred both fields); F6
+    # ships `groups` for real, while `applied_policies` still belongs to F9.
+    it "includes groups but still no applied_policies field (SoT F6 OQ-6)" do
       device = create(:device, organization: organization)
 
       get_device(device.id)
 
-      expect(body["device"]).not_to have_key("groups")
+      expect(body["device"]).to have_key("groups")
       expect(body["device"]).not_to have_key("applied_policies")
+    end
+  end
+
+  # F6 (SoT A24/A25): the "Groups đang thuộc" block on Device Detail reads
+  # this field. GET /api/v1/devices/:id is the ONLY response that carries it.
+  describe "the groups field (F6)" do
+    it "lists every group the device belongs to, as {id, name}" do
+      device = create(:device, organization: organization)
+      sales = create(:group, organization: organization, name: "Sales Team")
+      engineering = create(:group, organization: organization, name: "Engineering")
+      create(:group_membership, group: sales, device: device)
+      create(:group_membership, group: engineering, device: device)
+
+      get_device(device.id)
+
+      expect(body["device"]["groups"]).to eq([
+        { "id" => engineering.id, "name" => "Engineering" },
+        { "id" => sales.id, "name" => "Sales Team" }
+      ])
+    end
+
+    it "orders the groups by name, so the block is stable between requests" do
+      device = create(:device, organization: organization)
+      %w[Zulu Alpha Mike].each do |name|
+        create(:group_membership, group: create(:group, organization: organization, name: name), device: device)
+      end
+
+      get_device(device.id)
+
+      expect(body["device"]["groups"].map { |g| g["name"] }).to eq(%w[Alpha Mike Zulu])
+    end
+
+    it "returns [], never null, for a device in no group at all (A25)" do
+      device = create(:device, organization: organization)
+
+      get_device(device.id)
+
+      expect(body["device"]["groups"]).to eq([])
+    end
+
+    it "exposes only id and name per group, never organization_id or timestamps" do
+      device = create(:device, organization: organization)
+      create(:group_membership, group: create(:group, organization: organization), device: device)
+
+      get_device(device.id)
+
+      expect(body["device"]["groups"].first.keys).to contain_exactly("id", "name")
+    end
+
+    # group_memberships has no org-match validation by design (F6-db.md §1b),
+    # so read time re-applies the boundary instead of trusting write time.
+    it "never shows a group belonging to another organization, even if a row somehow links them" do
+      device = create(:device, organization: organization)
+      mine = create(:group, organization: organization, name: "Mine")
+      foreign = create(:group, organization: other_organization, name: "Theirs")
+      create(:group_membership, group: mine, device: device)
+      GroupMembership.insert!({ group_id: foreign.id, device_id: device.id, created_at: Time.current, updated_at: Time.current })
+
+      get_device(device.id)
+
+      expect(body["device"]["groups"].map { |g| g["name"] }).to eq([ "Mine" ])
+    end
+
+    it "still lists the groups of a retired device, read-only being a UI concern (A26)" do
+      device = create(:device, organization: organization, status: :retired)
+      group = create(:group, organization: organization, name: "Sales Team")
+      create(:group_membership, group: group, device: device)
+
+      get_device(device.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["device"]["groups"].map { |g| g["name"] }).to eq([ "Sales Team" ])
     end
   end
 

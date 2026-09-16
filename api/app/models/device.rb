@@ -1,6 +1,12 @@
 class Device < ApplicationRecord
   belongs_to :organization
 
+  # No `dependent:` — the PRD has no delete-a-device flow, so there is
+  # nothing to clean up after (docs/design/F6-db.md §1). Whoever adds one
+  # owes this association an explicit `dependent:` in the same change.
+  has_many :group_memberships
+  has_many :groups, through: :group_memberships
+
   # Integer-backed native enums, same style as User#status (F0) — see
   # docs/design/F2-db.md §1b for why no parallel DB check constraint.
   enum :platform, { ios: 0, android: 1, macos: 2 }
@@ -8,6 +14,13 @@ class Device < ApplicationRecord
 
   IDENTIFIER_TAKEN_MESSAGE = "Identifier này đã tồn tại trong tổ chức của bạn.".freeze
   RETIRED_IMMUTABLE_MESSAGE = "Thiết bị đã retired, không thể sửa".freeze
+  # One constant, three call sites (F6): adding a retired device to a group,
+  # removing one from a group, and the atomic-reject branch that refuses a
+  # whole batch containing any retired device. Membership changes do not go
+  # through Device#save, so `block_all_changes_when_retired` below cannot see
+  # them — Api::V1::GroupDevicesController enforces the same invariant with
+  # this message (CLAUDE.md §4 "retired bất biến", SoT F6 A8/A9/A27).
+  RETIRED_GROUP_MESSAGE = "Thiết bị đã retired, không thể thay đổi group".freeze
 
   # Declared first — SoT §4 bước 3: "kiểm tra retired trước tiên", short-
   # circuits the entire remaining validate chain via throw(:abort) so a

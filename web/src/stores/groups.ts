@@ -18,6 +18,17 @@ interface GroupsState {
   error: string | null
   /** Monotonic id of the most recent request; older responses are discarded. */
   lastRequestId: number
+  /**
+   * NEW at F6 — full path (query string included) of the last time
+   * `GroupListView` was on screen, read by `GroupDetailView`'s "◀ Quay lại
+   * danh sách" so it restores the exact search/page the user came from.
+   * F5 had no twin of this because there was no group detail page to come
+   * back from (SoT F5 OQ-5); the mechanism is identical to
+   * `devices.lastListLocation` (F4). Session-only on purpose: opening
+   * `/groups/:id` directly has no previous list, and `null` correctly falls
+   * back to a bare `/groups`.
+   */
+  lastListLocation: string | null
 }
 
 /**
@@ -28,8 +39,6 @@ interface GroupsState {
  * URL and are passed in explicitly on every call, so a reload or a
  * back-button can never disagree with what the table shows.
  *
- * There is no `lastListLocation` twin here — F5 has no group detail page to
- * come back from (SoT F5 OQ-5).
  */
 export const useGroupsStore = defineStore('groups', {
   state: (): GroupsState => ({
@@ -38,6 +47,7 @@ export const useGroupsStore = defineStore('groups', {
     loading: false,
     error: null,
     lastRequestId: 0,
+    lastListLocation: null,
   }),
 
   actions: {

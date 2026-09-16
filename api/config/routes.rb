@@ -8,7 +8,17 @@ Rails.application.routes.draw do
       resources :sessions, only: [ :create ]
       resource :me, only: [ :show ], controller: "me"
       resources :devices, only: [ :index, :show, :create, :update ]
-      resources :groups, only: [ :index, :create, :update, :destroy ]
+      # `member do ... end`, not a nested `resources :devices` — the nested
+      # form would rename the Group param to :group_id, while the contract
+      # (SoT F6 §8, docs/design/F6-api.md §1) is `groups/:id/devices` and
+      # `groups/:id/devices/:device_id`.
+      resources :groups, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          get "devices", to: "group_devices#index"
+          post "devices", to: "group_devices#create"
+          delete "devices/:device_id", to: "group_devices#destroy"
+        end
+      end
     end
   end
 end

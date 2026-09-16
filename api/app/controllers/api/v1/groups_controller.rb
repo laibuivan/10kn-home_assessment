@@ -2,8 +2,9 @@ module Api
   module V1
     # Group CRUD — docs/design/F5-api.md §2.
     #
-    # Four endpoints, no `show` (SoT F5 OQ-5: the edit form prefills from the
-    # list response, so a detail endpoint would be dead weight). Every action
+    # Five endpoints since F6 added `show` for the Group detail screen (F5
+    # had none — SoT F5 OQ-5 judged it dead weight while the edit form was
+    # the only consumer). Every action
     # reaches its records through Pundit — `policy_scope(Group)` for reads and
     # `current_organization.groups.build` for writes — so the Organization
     # boundary is applied in exactly one place and a cross-org id 404s instead
@@ -37,8 +38,14 @@ module Api
         # rows, which is exactly the decided behaviour (200 + empty, A16).
         records = scope.offset((page - 1) * per_page).limit(per_page)
 
+        # ONE grouped COUNT for the whole page, never `group.devices.count`
+        # inside the map — that would be an N+1 that grows with per_page
+        # (docs/design/F6-api.md §2.7, plan F6 "Bẫy #5"). Groups with no
+        # members simply don't appear in the result, hence fetch(id, 0).
+        devices_counts = GroupMembership.where(group_id: records.map(&:id)).group(:group_id).count
+
         render json: {
-          groups: records.map { |group| serialize_group(group) },
+          groups: records.map { |group| serialize_group(group, devices_count: devices_counts.fetch(group.id, 0)) },
           meta: {
             current_page: page,
             per_page: per_page,
@@ -46,6 +53,24 @@ module Api
             total_pages: total_pages(total_count)
           }
         }
+      end
+
+      # GET /api/v1/groups/:id — docs/design/F6-api.md §2.1.
+      #
+      # Found through the Pundit scope, so a cross-org id, a nonexistent id or
+      # a malformed id all raise ActiveRecord::RecordNotFound (rescued
+      # globally into a 404 — never a 403) before authorize even runs
+      # (SoT F6 A1, A5).
+      def show
+        group = policy_scope(Group).find(params[:id])
+        # Explicit query: Api::V1::GroupDevicesController#index authorizes the
+        # very same :show? on its own action named `index`, so spelling it out
+        # here keeps both call sites asking the same question by name rather
+        # than by whichever action happens to be running
+        # (docs/design/F6-api.md §1).
+        authorize group, :show?
+
+        render json: { group: serialize_group(group) }
       end
 
       # POST /api/v1/groups — docs/design/F5-api.md §2.2.
@@ -144,14 +169,21 @@ module Api
         render_validation_errors(name: [ Group::NAME_TAKEN_MESSAGE ])
       end
 
-      # Exactly five fields: no organization_id (the client only ever has one,
-      # and returning it hints it could be changed) and no devices_count
-      # (SoT F5 OQ-4 — F6 adds it when there is something real to count).
-      def serialize_group(group)
+      # Exactly six fields since F6 — still no organization_id (the client only
+      # ever has one, and returning it hints it could be changed), now always
+      # devices_count so a group has ONE shape across index/show/create/update
+      # and the frontend never has to handle two (docs/design/F6-api.md §1).
+      #
+      # The default argument is only evaluated when the caller omits it, which
+      # is what makes this safe: #index always passes a value from its single
+      # grouped COUNT, so the per-record `group.devices.count` below runs only
+      # for the single-record responses (show/create/update), one COUNT each.
+      def serialize_group(group, devices_count: group.devices.count)
         {
           id: group.id,
           name: group.name,
           description: group.description,
+          devices_count: devices_count,
           created_at: group.created_at,
           updated_at: group.updated_at
         }

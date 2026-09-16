@@ -32,11 +32,31 @@ RSpec.describe GroupPolicy, type: :policy do
     end
   end
 
+  # Three actions F6 added. They are authorized explicitly by name at every
+  # call site (`authorize group, :show?`) because
+  # Api::V1::GroupDevicesController's actions are also called index/create/
+  # destroy — see the policy's own comment.
   describe "#show?" do
-    it "stays deny-by-default — F5 has no show action (SoT OQ-5), so nothing opts it in" do
+    it "allows any active user of an organization to read one of its groups (no in-org roles)" do
       group = create(:group, organization: organization)
 
-      expect(described_class.new(user, group).show?).to be(false)
+      expect(described_class.new(user, group).show?).to be(true)
+    end
+  end
+
+  describe "#add_devices?" do
+    it "allows any active user of an organization to add devices to its groups (A32)" do
+      group = create(:group, organization: organization)
+
+      expect(described_class.new(user, group).add_devices?).to be(true)
+    end
+  end
+
+  describe "#remove_device?" do
+    it "allows any active user of an organization to remove a device from its groups (A32)" do
+      group = create(:group, organization: organization)
+
+      expect(described_class.new(user, group).remove_device?).to be(true)
     end
   end
 

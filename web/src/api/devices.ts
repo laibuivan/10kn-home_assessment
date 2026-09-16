@@ -2,6 +2,7 @@ import { apiClient } from './client'
 import type {
   Device,
   DeviceCreatePayload,
+  DeviceDetail,
   DeviceListResponse,
   DeviceQueryParams,
   DeviceUpdatePayload,
@@ -25,9 +26,17 @@ export interface DeviceResponse {
   device: Device
 }
 
-/** GET /api/v1/devices/:id — docs/design/F4-api.md §1. `id` is passed through as-is (route params are always strings). */
-export async function fetchDevice(id: number | string): Promise<DeviceResponse> {
-  const response = await apiClient.get<DeviceResponse>(`/api/v1/devices/${id}`)
+/**
+ * The detail endpoint's own envelope — same `device` key, but the payload
+ * carries `groups` (F6-api.md §2.6), which `index`/`create`/`update` do not.
+ */
+export interface DeviceDetailResponse {
+  device: DeviceDetail
+}
+
+/** GET /api/v1/devices/:id — docs/design/F4-api.md §1 + F6-api.md §2.6. `id` is passed through as-is (route params are always strings). */
+export async function fetchDevice(id: number | string): Promise<DeviceDetailResponse> {
+  const response = await apiClient.get<DeviceDetailResponse>(`/api/v1/devices/${id}`)
   return response.data
 }
 

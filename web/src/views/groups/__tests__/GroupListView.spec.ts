@@ -4,6 +4,7 @@ import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { setActivePinia, createPinia } from 'pinia'
 import GroupListView from '../GroupListView.vue'
 import { fetchGroupList, createGroup, updateGroup, deleteGroup } from '../../../api/groups'
+import { useGroupsStore } from '../../../stores/groups'
 import type { Group, GroupListResponse } from '../../../types/group'
 
 vi.mock('../../../api/groups', () => ({
@@ -18,6 +19,7 @@ function group(overrides: Partial<Group> = {}): Group {
     id: 1,
     name: 'Sales Team',
     description: 'Đội kinh doanh',
+    devices_count: 0,
     created_at: '2026-09-16T08:00:00.000Z',
     updated_at: '2026-09-16T08:00:00.000Z',
     ...overrides,
@@ -49,6 +51,7 @@ function buildRouter(): Router {
       { path: '/login', name: 'login', component: { template: '<div />' } },
       { path: '/devices', name: 'devices', component: { template: '<div />' } },
       { path: '/groups', name: 'groups', component: GroupListView },
+      { path: '/groups/:id', name: 'group-detail', component: { template: '<div />' } },
     ],
   })
 }
@@ -258,20 +261,33 @@ describe('GroupListView', () => {
     expect(wrapper.findAll('[data-testid=group-row]')).toHaveLength(1)
   })
 
+  // These two replace the F5 originals ("exactly Sửa + Xóa", "a row click
+  // goes nowhere"), which asserted the ABSENCE of a group detail page. F6
+  // adds that page, so the old expectations are obsolete by design
+  // (docs/design/F6-frontend.md §2.0), not broken.
   describe('row actions menu', () => {
-    it('offers exactly "Sửa" and "Xóa" — no detail action, nothing disabled', async () => {
+    it('offers "Sửa", "Xóa" and "Xem chi tiết", nothing disabled', async () => {
       vi.mocked(fetchGroupList).mockResolvedValue(listResponse([group()]))
 
       const { wrapper } = await mountView('/groups')
       await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
 
       const items = wrapper.findAll('.dropdown-item')
-      expect(items.map((item) => item.text())).toEqual(['Sửa', 'Xóa'])
+      expect(items.map((item) => item.text())).toEqual(['Sửa', 'Xóa', 'Xem chi tiết'])
       expect(items.every((item) => item.attributes('disabled') === undefined)).toBe(true)
-      expect(wrapper.text()).not.toContain('Xem chi tiết')
     })
 
-    it('does not navigate anywhere when a row is clicked (no group detail page)', async () => {
+    it('navigates to the group detail page from "Xem chi tiết"', async () => {
+      vi.mocked(fetchGroupList).mockResolvedValue(listResponse([group({ id: 7 })]))
+
+      const { wrapper, router } = await mountView('/groups')
+      await rowAction(wrapper, 'group-action-view')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/groups/7')
+    })
+
+    it('opens the detail page when the row itself is clicked', async () => {
       vi.mocked(fetchGroupList).mockResolvedValue(listResponse([group({ id: 7 })]))
 
       const { wrapper, router } = await mountView('/groups')
@@ -279,7 +295,60 @@ describe('GroupListView', () => {
       await wrapper.find('[data-field=name]').trigger('click')
       await flushPromises()
 
+      expect(router.currentRoute.value.path).toBe('/groups/7')
+    })
+
+    it('does not navigate when the "⋯" trigger inside the row is clicked', async () => {
+      vi.mocked(fetchGroupList).mockResolvedValue(listResponse([group({ id: 7 })]))
+
+      const { wrapper, router } = await mountView('/groups')
+
+      await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
+      await flushPromises()
+
+      // @click.stop on the actions cell — without it, opening the menu would
+      // also fire the row's own navigation.
       expect(router.currentRoute.value.path).toBe('/groups')
+      expect(wrapper.find('[data-testid=group-action-edit]').exists()).toBe(true)
+    })
+  })
+
+  describe('devices_count column (F6)', () => {
+    it('renders the real number of devices, including 0', async () => {
+      vi.mocked(fetchGroupList).mockResolvedValue(
+        listResponse([group({ id: 1, devices_count: 128 }), group({ id: 2, devices_count: 0 })]),
+      )
+
+      const { wrapper } = await mountView('/groups')
+
+      const cells = wrapper.findAll('[data-field=devices_count]')
+      expect(cells.map((cell) => cell.text())).toEqual(['128', '0'])
+    })
+
+    it('puts that number into the delete confirmation copy', async () => {
+      vi.mocked(fetchGroupList).mockResolvedValue(listResponse([group({ devices_count: 128 })]))
+
+      const { wrapper } = await mountView('/groups')
+      await rowAction(wrapper, 'group-action-delete')
+
+      expect(wrapper.find('[data-testid=confirm-modal]').text()).toContain(
+        'sẽ gỡ toàn bộ liên kết với 128 device',
+      )
+    })
+  })
+
+  describe('lastListLocation (F6)', () => {
+    it('records the current full path on mount and keeps it in sync with the URL', async () => {
+      vi.mocked(fetchGroupList).mockResolvedValue(listResponse([group()], { total_count: 45 }))
+
+      const { wrapper } = await mountView('/groups?q=sales&page=2')
+      const store = useGroupsStore()
+      expect(store.lastListLocation).toBe('/groups?q=sales&page=2')
+
+      await wrapper.find('[data-testid=search-clear-button]').trigger('click')
+      await flushPromises()
+
+      expect(store.lastListLocation).toBe('/groups')
     })
   })
 
