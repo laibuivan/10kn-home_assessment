@@ -396,6 +396,26 @@ RSpec.describe "GET /api/v1/devices/:id", type: :request do
       )
     end
 
+    it "bumps last_seen_at to now and reflects it in the response (F4 follow-up)" do
+      device = create(:device, organization: organization, status: :active, last_seen_at: 3.days.ago)
+
+      travel_to Time.current.change(usec: 0) do
+        get_device(device.id)
+
+        expect(body["device"]["last_seen_at"]).to eq(Time.current.iso8601(3))
+        expect(device.reload.last_seen_at).to be_within(1.second).of(Time.current)
+      end
+    end
+
+    it "does NOT bump last_seen_at for a retired device (CLAUDE.md §4 'retired bất biến')" do
+      device = create(:device, organization: organization, status: :retired, last_seen_at: nil)
+
+      get_device(device.id)
+
+      expect(body["device"]["last_seen_at"]).to be_nil
+      expect(device.reload.last_seen_at).to be_nil
+    end
+
     it "does not include any groups/applied_policies field (SoT F4 OQ-6)" do
       device = create(:device, organization: organization)
 

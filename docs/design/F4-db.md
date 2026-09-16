@@ -13,11 +13,16 @@ xem `docs/design/F2-db.md`; validate/callback ở `api/app/models/device.rb`
 đã tồn tại từ F3, xem `docs/design/F3-db.md`).
 
 **Kết luận đầu tiên (khớp SoT §1, §3, §8):** F4 **không cần migration nào**
-và **không đổi gì ở `Device` model**. F4 chỉ đọc (`GET /api/v1/devices/:id`),
-dùng nguyên field/validation/callback đã có từ F2/F3. SoT §3 "Ngoài phạm vi"
-đã chốt rõ: không tạo bảng `groups`/`policies`/`group_memberships`/
-`policy_assignments` — những bảng đó thuộc F5/F6/F7/F8, chưa phải dependency
-của F4 (xem SoT §1 "Lưu ý sequencing quan trọng", OQ-1).
+— không thêm/đổi cột, bảng, hay index nào. F4 chỉ đọc (`GET
+/api/v1/devices/:id`), dùng nguyên field/validation/callback đã có từ F2/F3.
+SoT §3 "Ngoài phạm vi" đã chốt rõ: không tạo bảng `groups`/`policies`/
+`group_memberships`/`policy_assignments` — những bảng đó thuộc F5/F6/F7/F8,
+chưa phải dependency của F4 (xem SoT §1 "Lưu ý sequencing quan trọng", OQ-1).
+
+**Cập nhật sau khi F4 lên PR (SoT OQ-7):** F4 **có** thêm 1 method mới vào
+`Device` model — `record_seen!` — để hỗ trợ quyết định "xem chi tiết = đã
+thấy" (xem §1 dưới). Đây vẫn không phải migration/thay đổi schema, chỉ là
+Ruby code thuần.
 
 ## 1. Model / field / enum / relation
 
@@ -25,10 +30,11 @@ của F4 (xem SoT §1 "Lưu ý sequencing quan trọng", OQ-1).
 |---|---|---|---|---|
 | `Device` | mọi field (`identifier`, `name`, `platform`, `os_version`, `status`, `organization_id`, `last_seen_at`, timestamps) | (như F2/F3) | Không đổi field/kiểu/index/validation/callback nào — xem `docs/design/F2-db.md` §1, `docs/design/F3-db.md` §1 | **No-change** |
 | `Device` | `has_many :groups` / `has_many :policies` | — | **Không thêm** — Group/Policy model chưa tồn tại (SoT OQ-1). Thêm association trỏ tới model chưa có sẽ raise lỗi load ngay khi Rails boot (`NameError: uninitialized constant Group`) | **Không làm** |
+| `Device` | `#record_seen!` | method | **Mới** (SoT OQ-7) — đánh dấu "đã xem" bằng cách ghi `last_seen_at = Time.current` **trực tiếp qua `update_column`**, không qua `update`: (1) bypass hoàn toàn `block_all_changes_when_retired`/`restore_immutable_identifier` và mọi `validates` — đây là ghi nhận hệ thống (telemetry), không phải "sửa" người dùng chủ động, không cần chạy lại presence/uniqueness của các field khác; (2) `update_column` không tự động bump `updated_at` (khác `update`/`touch`) — đúng ý "không phải 1 lần sửa record". Tự `return` sớm (no-op) nếu `retired?` — đây là **lớp phòng thủ duy nhất** cho invariant "retired bất biến" ở method này, không dựa vào caller (`DevicesController#show`) phải nhớ tự check trước. | **Add** |
 
-Không có field/assoc/enum mới nào ở F4. Bảng trên chỉ để xác nhận tường minh
-(và ghi lại lý do) 2 khả năng có thể bị nhầm là "cần làm" nhưng thực ra nằm
-ngoài phạm vi.
+Không có field/assoc/enum mới nào ở F4 (chỉ 1 method). Bảng trên chỉ để xác
+nhận tường minh (và ghi lại lý do) 2 khả năng có thể bị nhầm là "cần làm"
+nhưng thực ra nằm ngoài phạm vi (`has_many :groups/:policies`).
 
 ## 2. Migration plan
 

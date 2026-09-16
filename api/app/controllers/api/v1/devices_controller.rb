@@ -66,6 +66,11 @@ module Api
         device = policy_scope(Device).find(params[:id])
         authorize device
 
+        # Viewing the detail page counts as "seen" (F4 follow-up, DESIGN.md
+        # §AI) — no-op for a retired device (CLAUDE.md §4 "retired bất
+        # biến"), so the response always reflects the actually-persisted value.
+        device.record_seen!
+
         render json: { device: serialize_device(device) }
       end
 

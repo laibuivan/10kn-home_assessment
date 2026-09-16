@@ -259,6 +259,36 @@ Then('I am redirected to the login page', async ({ page }) => {
 })
 
 /**
+ * Reads `last_seen_at` back through a fresh, independent API call (not the
+ * page the scenario already loaded) — proves the value was actually
+ * persisted server-side by viewing the detail page, not just rendered in
+ * the DOM (F4 follow-up: `Device#record_seen!`).
+ */
+async function fetchLastSeenAt(request: import('@playwright/test').APIRequestContext, world: import('./fixtures').World, identifier: string): Promise<string | null> {
+  const org = Object.values(world.orgs ?? {})[0]
+  if (!org) throw new Error('no org fixture in world')
+  const deviceId = getDeviceId(org.name, identifier)
+  const token = await apiLogin(request, org.email, org.password)
+  const res = await request.get(`${API_URL}/api/v1/devices/${deviceId}`, { headers: { Authorization: `Bearer ${token}` } })
+  const parsed = await safeJson(res)
+  return parsed?.device?.last_seen_at ?? null
+}
+
+Then('last_seen_at for device {string} is now very recent', async ({ request, world }, identifier: string) => {
+  const lastSeenAt = await fetchLastSeenAt(request, world, identifier)
+  expect(lastSeenAt).not.toBeNull()
+  expect(Date.now() - new Date(lastSeenAt!).getTime()).toBeLessThan(30_000)
+})
+
+Then('last_seen_at for device {string} was not updated', async ({ request, world }, identifier: string) => {
+  const lastSeenAt = await fetchLastSeenAt(request, world, identifier)
+  // The fixture (`Device.create!` via rails runner, not the RSpec factory)
+  // never sets last_seen_at, so it starts out null — viewing a retired
+  // device must leave it that way.
+  expect(lastSeenAt).toBeNull()
+})
+
+/**
  * Distinguishes a real org-scoped 404 (ApplicationController's
  * `render_not_found`, F4-api.md §3: `{ "error": "Not found" }`) from a
  * coincidental 404 that Rails' default routing-error page also happens to

@@ -103,21 +103,29 @@ từ F3.
 3. `authorize device` — `DevicePolicy#show?` (luôn `true`). Gọi ở mức
    instance, cùng convention với `update` (`policy_scope` để tìm, `authorize`
    trên instance tìm được).
-4. Render:
+4. **Side effect (bổ sung sau khi F4 lên PR — SoT OQ-7, đảo lại quyết định
+   ban đầu "F3 không tự bịa cơ chế cập nhật `last_seen_at`")**:
+   ```ruby
+   device.record_seen!
+   ```
+   Gọi **trước** khi serialize, để response luôn phản ánh đúng giá trị đã
+   persist (không có "response drift"). `record_seen!` (model, xem
+   `docs/design/F4-db.md` §1) tự no-op cho device `retired` — action `show`
+   không cần tự kiểm tra `device.retired?` trước khi gọi.
+5. Render:
    ```ruby
    render json: { device: serialize_device(device) }
    ```
    Không có business logic nào khác — F4 không tính toán, không join
-   group/policy (chưa có model), không side-effect (không cập nhật
-   `last_seen_at` hay bất kỳ field nào khi xem chi tiết — SoT không yêu cầu
-   "view = last_seen_at update", và field này là do device tự báo cáo, xem
-   `docs/sot/F3-device-create-edit.md` §3 "Ngoài phạm vi").
+   group/policy (chưa có model).
 
 Không cần strong params (không có input ngoài `:id` trong route, không có
 body/query param nào action này đọc).
 
-Không có transaction nào cần thêm — 1 `SELECT` đơn, không ghi dữ liệu (SoT
-§10, F4-db.md §3).
+Không cần transaction tường minh — `record_seen!` dùng `update_column` (1
+UPDATE đơn, tự atomic ở tầng DB), tách biệt hoàn toàn khỏi `SELECT` đọc
+device phía trên; không có 2 câu lệnh ghi nào cần bọc chung 1 transaction
+(SoT §10, F4-db.md §3).
 
 ## 3. Lỗi / edge case
 

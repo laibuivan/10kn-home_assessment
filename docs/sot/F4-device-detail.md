@@ -195,6 +195,17 @@ cho các hành động quản lý group/policy trên thiết bị này ở các 
   không có field `groups`/`applied_policies` (F4 chưa có model tương ứng) —
   2 khối FE hiển thị empty tĩnh dựa trên thực tế chưa có tính năng, không
   dựa trên field rỗng giả từ API (xem OQ-1, OQ-6).
+- **Xem chi tiết = "đã thấy" (bổ sung sau khi F4 lên PR, không có trong
+  PRD — quyết định sản phẩm, xem `DESIGN.md` §AI)**: mỗi lần `GET
+  /api/v1/devices/:id` thành công (`authorize` qua), device được đánh dấu
+  `last_seen_at = now` qua `Device#record_seen!` — bypass hẳn
+  validate/callback của `update` (dùng `update_column`, không dùng
+  `update`), vì đây là bản ghi hệ thống tự động (telemetry), không phải
+  "sửa" do user thao tác, và không được đụng tới `updated_at`.
+  **Ngoại lệ bắt buộc**: Device `retired` **không** được đổi `last_seen_at`
+  dù đang xem chi tiết — giữ đúng tuyệt đối invariant "retired bất biến"
+  (`CLAUDE.md` §4, xem OQ-7). Field trả về trong response luôn phản ánh giá
+  trị đã persist (không có "response drift").
 
 ## §7. UI state
 - Loading: skeleton toàn trang (Header + 2 khối) lúc gọi `GET
@@ -318,6 +329,16 @@ Scenario: Chưa đăng nhập truy cập thẳng URL chi tiết Device bị chuy
   Given tôi chưa đăng nhập
   When tôi mở thẳng URL "/devices/:id" trên trình duyệt
   Then tôi bị chuyển hướng tới trang đăng nhập
+
+Scenario: Xem chi tiết Device cập nhật last_seen_at
+  Given Organization "Acme Inc." có Device "IPHONE-213" đang status "active"
+  When tôi mở trang chi tiết Device "IPHONE-213"
+  Then last_seen_at của Device "IPHONE-213" được cập nhật thành thời điểm hiện tại
+
+Scenario: Xem chi tiết Device retired không cập nhật last_seen_at
+  Given Organization "Acme Inc." có Device "IPHONE-214" đang status "retired"
+  When tôi mở trang chi tiết Device "IPHONE-214"
+  Then last_seen_at của Device "IPHONE-214" không đổi
 ```
 
 ## §12. Decisions & Open questions
@@ -329,6 +350,7 @@ Scenario: Chưa đăng nhập truy cập thẳng URL chi tiết Device bị chuy
 | OQ-4 | Sửa Device từ trang chi tiết — mở modal riêng hay tái dùng nguyên `DeviceFormModal` đã có từ F3? | Tái dùng nguyên vẹn `DeviceFormModal`/`FormModal` từ F3, chỉ đổi hành vi sau khi lưu thành công (refetch detail thay vì refresh list). | Đồng ý theo khuyến nghị. |
 | OQ-5 | "◀ Quay lại danh sách" có giữ filter/trang đã xem trước đó không? | Có — dùng lại query string đã lưu (giống cách F2 lưu filter vào URL), fallback `/devices` không filter nếu vào thẳng bằng URL chi tiết (không có lịch sử điều hướng hợp lệ trong app). | Đồng ý theo khuyến nghị. |
 | OQ-6 | Response `GET /api/v1/devices/:id` có nên thêm field rỗng `groups: []`/`applied_policies: []` ngay từ F4 để tránh đổi contract sau (F6/F8/F9)? | Không thêm — giữ response chỉ gồm thuộc tính Device; tránh bịa 1 contract mà feature sau có thể cần thiết kế khác (vd `applied_policies` có thể cần field `source`/`overridden_by` phức tạp hơn 1 mảng rỗng). FE tự vẽ empty tĩnh dựa trên thực tế chưa có tính năng, không dựa vào field response. | Đồng ý theo khuyến nghị. |
+| OQ-7 | (Bổ sung sau khi F4 lên PR) Xem chi tiết Device có nên cập nhật `last_seen_at` không, và nếu có thì với Device `retired` thì sao? | Có cập nhật `last_seen_at = now` mỗi lần xem thành công — **trừ** Device `retired`, tuyệt đối không đổi field nào của record retired (đúng nghĩa đen "retired bất biến", `CLAUDE.md` §4) dù đây chỉ là ghi nhận hệ thống, không phải "sửa" do user. | Đồng ý theo khuyến nghị (người dùng chọn trực tiếp qua câu hỏi làm rõ). |
 
 **Rủi ro/giả định:**
 - `UI_UX_design.md` §5 mô tả loading/error **tách riêng cho cả 3 khối** (vì

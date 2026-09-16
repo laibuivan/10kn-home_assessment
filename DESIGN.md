@@ -302,3 +302,19 @@ chỉ đọc đúng tài liệu nguồn đã approve của bước trước, kh�
     lỗi có sẵn trên nhánh F3 gốc (không phải regression của F4), rồi chạy lại
     với `-e RAILS_ENV=test` tường minh — không sửa code sản phẩm.
 
+**Follow-up sau PR #7 (cùng F4, trước khi merge)**: user yêu cầu bổ sung
+"xem chi tiết Device thì cập nhật `last_seen_at`" — không có trong PRD, đảo
+lại 1 quyết định "ngoài phạm vi" mà chính F3 đã ghi (`docs/sot/F3-device-create-edit.md`
+§3: "F3 không tự bịa thêm 1 cơ chế cập nhật `last_seen_at`"). Trước khi code,
+AI chủ động hỏi lại 1 câu làm rõ (không tự quyết) vì đụng thẳng invariant
+"retired bất biến" (`CLAUDE.md` §4, mục bị chấm nặng nhất): device `retired`
+có nên vẫn bị đổi `last_seen_at` khi xem không? Người dùng chọn **không** —
+giữ tuyệt đối invariant. Implement theo TDD đúng thứ tự (`CLAUDE.md` §3 rule
+4): RSpec model spec cho `Device#record_seen!` trước (RED), rồi code
+(`update_column`, bypass hẳn callback/validate — không dùng `update` để
+tránh mọi rủi ro vô tình chạm lại callback retired-block), rồi request spec,
+rồi bổ sung 2 scenario + step definition vào `.feature` đã có, rồi ghi lại
+quyết định vào SoT §6/§11/§12 (OQ-7) + `docs/design/F4-{db,api}.md` — không
+bỏ qua tài liệu dù đây là thay đổi nhỏ. Toàn bộ 4 gate chạy lại xanh trước
+khi push tiếp lên PR #7 (không tạo PR mới).
+

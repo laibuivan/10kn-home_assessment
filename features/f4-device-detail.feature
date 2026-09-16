@@ -92,3 +92,13 @@ Feature: Device detail page
     Given organization "Acme Inc." has a device "IPHONE-212"
     When I navigate directly to the detail page URL for device "IPHONE-212" while not logged in
     Then I am redirected to the login page
+
+  Scenario: Viewing a device's detail page marks it as seen
+    Given I am logged in as an active user of organization "Acme Inc." with a device "IPHONE-213" that is "active"
+    When I open the detail page for device "IPHONE-213"
+    Then last_seen_at for device "IPHONE-213" is now very recent
+
+  Scenario: Viewing a retired device's detail page does not mark it as seen
+    Given I am logged in as an active user of organization "Acme Inc." with a device "IPHONE-214" that is "retired"
+    When I open the detail page for device "IPHONE-214"
+    Then last_seen_at for device "IPHONE-214" was not updated
