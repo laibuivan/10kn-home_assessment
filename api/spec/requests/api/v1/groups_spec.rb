@@ -18,6 +18,17 @@ RSpec.describe "GET /api/v1/groups", type: :request do
     response.parsed_body
   end
 
+  # Counts the SELECT/INSERT/... statements one block issues, ignoring the
+  # transaction bookkeeping RSpec's transactional fixtures add. Used to pin
+  # the "one grouped count per page" promise (plan F6 "Bẫy #5"), which no
+  # behavioural assertion can catch.
+  def count_queries(&block)
+    count = 0
+    counter = ->(_name, _start, _finish, _id, payload) { count += 1 unless payload[:name].in?([ "SCHEMA", "TRANSACTION" ]) }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
+    count
+  end
+
   describe "authentication (A20)" do
     it "rejects a request with no Authorization header" do
       get_groups({}, token: nil)
@@ -56,26 +67,28 @@ RSpec.describe "GET /api/v1/groups", type: :request do
       )
     end
 
-    it "serializes exactly the five fields the list screen needs" do
+    # Five fields at F5, six from F6 on: devices_count joined the shape once
+    # group_memberships existed to count (F5 OQ-4 handed the decision to F6,
+    # docs/design/F6-api.md §1).
+    it "serializes exactly the six fields the list screen needs" do
       group = create(:group, organization: organization, name: "Sales Team", description: "Đội kinh doanh")
 
       get_groups
 
       expect(body["groups"].first.keys).to contain_exactly(
-        "id", "name", "description", "created_at", "updated_at"
+        "id", "name", "description", "devices_count", "created_at", "updated_at"
       )
       expect(body["groups"].first).to include(
         "id" => group.id, "name" => "Sales Team", "description" => "Đội kinh doanh"
       )
     end
 
-    it "never exposes organization_id or a devices_count (SoT OQ-4)" do
+    it "never exposes organization_id" do
       create(:group, organization: organization)
 
       get_groups
 
       expect(body["groups"].first).not_to have_key("organization_id")
-      expect(body["groups"].first).not_to have_key("devices_count")
     end
 
     it "returns null, never an empty string, for a group with no description (A25)" do
@@ -326,6 +339,177 @@ RSpec.describe "GET /api/v1/groups", type: :request do
       expect(body["meta"]["total_pages"]).to eq(1)
     end
   end
+
+  describe "devices_count (F6)" do
+    it "reports how many devices are members of each group" do
+      create(:group, organization: organization, name: "Field Ops", created_at: 2.days.ago)
+      populated = create(:group, organization: organization, name: "Sales Team", created_at: 1.day.ago)
+      create_list(:device, 3, organization: organization).each do |device|
+        create(:group_membership, group: populated, device: device)
+      end
+
+      get_groups
+
+      counts = body["groups"].to_h { |group| [ group["name"], group["devices_count"] ] }
+      expect(counts).to eq("Sales Team" => 3, "Field Ops" => 0)
+    end
+
+    it "counts zero for a group nobody has joined, rather than omitting the field" do
+      create(:group, organization: organization)
+
+      get_groups
+
+      expect(body["groups"].first["devices_count"]).to eq(0)
+    end
+
+    it "never counts a membership that belongs to a different group" do
+      mine = create(:group, organization: organization, created_at: 1.day.ago)
+      theirs = create(:group, organization: organization)
+      create(:group_membership, group: theirs, device: create(:device, organization: organization))
+
+      get_groups
+
+      counts = body["groups"].to_h { |group| [ group["id"], group["devices_count"] ] }
+      expect(counts).to eq(theirs.id => 1, mine.id => 0)
+    end
+
+    # plan F6 "Bẫy #5": the obvious implementation (`group.devices.count`
+    # inside the map) is an N+1 that nothing else in this file would catch —
+    # every assertion above passes either way. Pin the query count instead.
+    it "uses ONE grouped count for the whole page, not one query per group" do
+      create_list(:group, 5, organization: organization).each do |group|
+        create(:group_membership, group: group, device: create(:device, organization: organization))
+      end
+
+      # One warm-up request first: the very first request of an example pays a
+      # few one-off queries (connection/schema bookkeeping) that would
+      # otherwise be counted against the 5-group run only.
+      get_groups
+      five_group_queries = count_queries { get_groups }
+
+      create_list(:group, 5, organization: organization).each do |group|
+        create(:group_membership, group: group, device: create(:device, organization: organization))
+      end
+
+      ten_group_queries = count_queries { get_groups }
+
+      expect(body["groups"].size).to eq(10)
+      expect(ten_group_queries).to eq(five_group_queries)
+    end
+  end
+end
+
+RSpec.describe "GET /api/v1/groups/:id", type: :request do
+  let(:organization) { create(:organization, name: "Acme Inc.") }
+  let(:user) { create(:user, organization: organization) }
+  let(:other_organization) { create(:organization, name: "Globex Corp.") }
+
+  def token_for(a_user)
+    JsonWebToken.encode(user_id: a_user.id, organization_id: a_user.organization_id)
+  end
+
+  def get_group(id, token: token_for(user))
+    headers = token ? { "Authorization" => "Bearer #{token}" } : {}
+    get "/api/v1/groups/#{id}", headers: headers
+  end
+
+  def body
+    response.parsed_body
+  end
+
+  describe "authentication (A30)" do
+    it "rejects a request with no Authorization header" do
+      group = create(:group, organization: organization)
+
+      get_group(group.id, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "rejects an expired token" do
+      group = create(:group, organization: organization)
+      expired = JsonWebToken.encode({ user_id: user.id, organization_id: user.organization_id }, -1)
+
+      get_group(group.id, token: expired)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe "viewing successfully" do
+    it "returns exactly the six serialized fields" do
+      group = create(:group, organization: organization, name: "Sales Team", description: "Đội kinh doanh")
+
+      get_group(group.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["group"].keys).to contain_exactly(
+        "id", "name", "description", "devices_count", "created_at", "updated_at"
+      )
+      expect(body["group"]).to include(
+        "id" => group.id, "name" => "Sales Team", "description" => "Đội kinh doanh", "devices_count" => 0
+      )
+    end
+
+    it "reports the real member count" do
+      group = create(:group, organization: organization)
+      create_list(:device, 4, organization: organization).each do |device|
+        create(:group_membership, group: group, device: device)
+      end
+
+      get_group(group.id)
+
+      expect(body["group"]["devices_count"]).to eq(4)
+    end
+
+    it "returns null, never an empty string, for a group with no description" do
+      group = create(:group, :without_description, organization: organization)
+
+      get_group(group.id)
+
+      expect(body["group"]["description"]).to be_nil
+    end
+
+    it "never serializes organization_id" do
+      group = create(:group, organization: organization)
+
+      get_group(group.id)
+
+      expect(body["group"]).not_to have_key("organization_id")
+    end
+  end
+
+  describe "404s, never 403 (CLAUDE.md §4, A1/A5)" do
+    it "returns 404 for a group belonging to another organization" do
+      foreign = create(:group, organization: other_organization)
+
+      get_group(foreign.id)
+
+      expect(response).to have_http_status(:not_found)
+      expect(body).to eq("error" => "Not found")
+    end
+
+    it "does not leak the foreign group's member count through the 404 body" do
+      foreign = create(:group, organization: other_organization)
+      create(:group_membership, group: foreign, device: create(:device, organization: other_organization))
+
+      get_group(foreign.id)
+
+      expect(response.body).not_to include("devices_count")
+    end
+
+    it "returns 404 for an id that does not exist" do
+      get_group(999_999)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 404, not a 500, for a malformed id" do
+      get_group("abc")
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end
 
 RSpec.describe "POST /api/v1/groups", type: :request do
@@ -365,14 +549,20 @@ RSpec.describe "POST /api/v1/groups", type: :request do
   end
 
   describe "creating successfully (S8)" do
-    it "returns 201 with exactly the five serialized fields" do
+    it "returns 201 with exactly the six serialized fields" do
       post_group({ name: "Sales Team", description: "Đội kinh doanh" })
 
       expect(response).to have_http_status(:created)
       expect(body["group"].keys).to contain_exactly(
-        "id", "name", "description", "created_at", "updated_at"
+        "id", "name", "description", "devices_count", "created_at", "updated_at"
       )
       expect(body["group"]).to include("name" => "Sales Team", "description" => "Đội kinh doanh")
+    end
+
+    it "reports devices_count 0 for a brand-new group" do
+      post_group({ name: "Sales Team" })
+
+      expect(body["group"]["devices_count"]).to eq(0)
     end
 
     it "persists the group in the caller's own organization" do
@@ -603,13 +793,24 @@ RSpec.describe "PATCH /api/v1/groups/:id", type: :request do
       expect(body["group"]["name"]).to eq("Sales EMEA")
     end
 
-    it "returns the five serialized fields, with no organization_id" do
+    it "recomputes devices_count on update instead of dropping the field" do
+      group = create(:group, organization: organization)
+      create_list(:device, 2, organization: organization).each do |device|
+        create(:group_membership, group: group, device: device)
+      end
+
+      patch_group(group.id, { name: "Sales EMEA" })
+
+      expect(body["group"]["devices_count"]).to eq(2)
+    end
+
+    it "returns the six serialized fields, with no organization_id" do
       group = create(:group, organization: organization)
 
       patch_group(group.id, { name: "Sales EMEA" })
 
       expect(body["group"].keys).to contain_exactly(
-        "id", "name", "description", "created_at", "updated_at"
+        "id", "name", "description", "devices_count", "created_at", "updated_at"
       )
     end
   end
@@ -790,6 +991,32 @@ RSpec.describe "DELETE /api/v1/groups/:id", type: :request do
     # docs/plan/F5-group-crud.md "Bẫy #1": #delete would pass every test here
     # today and silently orphan join rows from F6/F8 onwards. Pin the call so
     # nobody "optimizes" it away.
+    # A20/A21 at the request level — the model spec proves dependent:
+    # :delete_all works, this proves the endpoint actually reaches it.
+    it "removes every group_membership of the group, and no device (A20)" do
+      group = create(:group, organization: organization)
+      devices = create_list(:device, 3, organization: organization)
+      devices.each { |device| create(:group_membership, group: group, device: device) }
+
+      delete_group(group.id)
+
+      expect(response).to have_http_status(:no_content)
+      expect(GroupMembership.where(group_id: group.id)).to be_empty
+      expect(Device.where(id: devices.map(&:id)).count).to eq(3)
+    end
+
+    it "leaves the memberships of other groups alone" do
+      doomed = create(:group, organization: organization)
+      survivor = create(:group, organization: organization)
+      device = create(:device, organization: organization)
+      create(:group_membership, group: doomed, device: device)
+      create(:group_membership, group: survivor, device: device)
+
+      delete_group(doomed.id)
+
+      expect(GroupMembership.pluck(:group_id)).to eq([ survivor.id ])
+    end
+
     it "goes through #destroy, so future dependent: associations are honoured" do
       group = create(:group, organization: organization)
 
@@ -847,7 +1074,18 @@ RSpec.describe "routing for /api/v1/groups", type: :routing do
     expect(delete: "/api/v1/groups/1").to be_routable
   end
 
-  it "does not expose GET /api/v1/groups/:id (SoT OQ-5 — no detail endpoint)" do
-    expect(get: "/api/v1/groups/1").not_to be_routable
+  # F5 asserted this route did NOT exist (SoT F5 OQ-5 — the edit form
+  # prefilled from the list, so a detail endpoint was dead weight). F6's Group
+  # Detail screen makes it real.
+  it "routes GET /api/v1/groups/:id to the detail action (F6)" do
+    expect(get: "/api/v1/groups/1").to route_to(controller: "api/v1/groups", action: "show", id: "1")
+  end
+
+  # `member do ... end`, so the Group param stays :id and the device param is
+  # its own segment (docs/design/F6-api.md §1).
+  it "routes the three membership endpoints F6 owns" do
+    expect(get: "/api/v1/groups/1/devices").to route_to(controller: "api/v1/group_devices", action: "index", id: "1")
+    expect(post: "/api/v1/groups/1/devices").to route_to(controller: "api/v1/group_devices", action: "create", id: "1")
+    expect(delete: "/api/v1/groups/1/devices/2").to route_to(controller: "api/v1/group_devices", action: "destroy", id: "1", device_id: "2")
   end
 end

@@ -111,3 +111,36 @@ ACME_GROUPS.each { |name, description| upsert_group!(organization: acme, name: n
 GLOBEX_GROUPS.each { |name, description| upsert_group!(organization: globex, name: name, description: description) }
 
 puts "Seeded #{Group.count} groups (#{acme.groups.count} for #{acme.name}, #{globex.groups.count} for #{globex.name})."
+
+# ---------------------------------------------------------------------------
+# Group memberships (F6) — a few real links per org so Group Detail, the
+# "Số device" column and the "Groups đang thuộc" block on Device Detail all
+# have something to show during the README walkthrough.
+#
+# Small on purpose: the 10.000-row scale case is spec data
+# (GroupMembership.insert_all in spec/requests/api/v1/group_devices_spec.rb),
+# not seed data (docs/plan/F6-group-membership.md, Rủi ro).
+# Idempotent like everything above: keyed on (group, device), which is exactly
+# the composite unique index the schema enforces.
+def link_devices_to_group!(organization:, group_name:, identifiers:)
+  group = organization.groups.find_by!(name: group_name)
+
+  identifiers.each do |identifier|
+    device = organization.devices.find_by!(identifier: identifier)
+    GroupMembership.find_or_create_by!(group: group, device: device)
+  end
+end
+
+# ACME-0001..0012 exist from the device seed above; spread across groups so at
+# least one device (ACME-0001) belongs to two groups at once — that is the
+# PRD's "một Device thuộc nhiều Group" made visible by hand (SoT F6 A24).
+link_devices_to_group!(organization: acme, group_name: "Sales Team",
+                       identifiers: %w[ACME-0001 ACME-0002 ACME-0003 ACME-0004 ACME-0005])
+link_devices_to_group!(organization: acme, group_name: "Engineering",
+                       identifiers: %w[ACME-0001 ACME-0006 ACME-0007])
+# "Field Ops" is left empty on purpose — the real "group has no devices yet"
+# empty state (A19) needs a group that is genuinely empty to be seen.
+link_devices_to_group!(organization: globex, group_name: "Sales Team",
+                       identifiers: %w[GLBX-0001 GLBX-0002])
+
+puts "Seeded #{GroupMembership.count} group memberships."

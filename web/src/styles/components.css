@@ -197,3 +197,36 @@ body {
 @media (max-width: 640px) {
   .detail-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Group Detail tabs (F6) ---------- */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 16px 0; }
+.tab-item { padding: 8px 4px; font-size: 13.5px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; }
+.tab-item.active { color: var(--text); border-color: var(--accent); }
+/* Same "exists but not yet built" treatment as .nav-item.future — a label, never a button (F6-frontend.md OQ-FE-2). */
+.tab-item.future { opacity: 0.4; cursor: default; }
+
+/* ---------- AsyncSearchSelect (F6, shared with F7/F8) ---------- */
+.chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 4px 6px 4px 10px; }
+.chip button { background: none; border: none; cursor: pointer; color: var(--text-faint); font-size: 13px; line-height: 1; padding: 0 2px; }
+.chip button:hover { color: var(--danger); }
+.async-search { position: relative; }
+.async-search-dropdown { position: absolute; z-index: 6; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15, 23, 33, 0.12); }
+.async-search-option { display: flex; flex-direction: column; gap: 2px; padding: 8px 11px; cursor: pointer; }
+.async-search-option:hover { background: var(--surface-2); }
+.async-search-option.is-selected { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.async-search-option .sub { font-size: 11.5px; color: var(--text-faint); }
+.async-search-empty, .async-search-loading, .async-search-hint { padding: 12px; font-size: 12.5px; color: var(--text-muted); text-align: center; }
+
+/* ---------- Inline remove confirmation (F6, tab "Thành viên") ---------- */
+.inline-confirm { display: flex; align-items: center; gap: 6px; font-size: 12.5px; justify-content: flex-end; }
+.inline-confirm span { color: var(--text-muted); }
+/* Compact button variant used inside table rows / group lists — same colours
+   as .btn, only the box is smaller (matches F6-frontend-preview.html). */
+.btn-sm { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+
+/* ---------- Device Detail — "Groups đang thuộc" list (F6) ---------- */
+.group-link-list { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 8px; }
+.group-link-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+.group-link-list a { color: var(--accent); text-decoration: none; }
+.group-link-list a:hover { text-decoration: underline; }

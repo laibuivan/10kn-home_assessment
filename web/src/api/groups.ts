@@ -8,10 +8,11 @@ import type {
 } from '../types/group'
 
 /**
- * The four `/api/v1/groups` endpoints — docs/design/F5-api.md §1, and no
- * more than four. There is deliberately **no** `fetchGroup(id)`: the API has
- * no `show` action (SoT F5 OQ-5), and the edit form prefills from the row
- * already in the store.
+ * The `/api/v1/groups` endpoints — docs/design/F5-api.md §1 plus the `show`
+ * action F6 added (F6-api.md §2.1). F5 deliberately had no `fetchGroup(id)`
+ * because there was no group detail page yet (SoT F5 OQ-5); F6 introduces
+ * `/groups/:id`, which needs the header straight from the API rather than
+ * from a list row that may not be in the store at all (deep link, reload).
  *
  * Everything goes through the shared `apiClient` (Bearer token + the global
  * 401 -> /login redirect live there); no new axios instance.
@@ -20,6 +21,12 @@ import type {
 /** GET /api/v1/groups — axios drops `undefined` params, so an absent `q` simply means "all". */
 export async function fetchGroupList(params: GroupQueryParams): Promise<GroupListResponse> {
   const response = await apiClient.get<GroupListResponse>('/api/v1/groups', { params })
+  return response.data
+}
+
+/** GET /api/v1/groups/:id — new at F6. Same `{ group }` envelope as create/update, so `GroupResponse` is reused as-is. */
+export async function fetchGroup(id: number | string): Promise<GroupResponse> {
+  const response = await apiClient.get<GroupResponse>(`/api/v1/groups/${id}`)
   return response.data
 }
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_141716) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -28,6 +28,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
     t.index ["organization_id", "identifier"], name: "index_devices_on_organization_id_and_identifier", unique: true
     t.index ["organization_id", "platform"], name: "index_devices_on_organization_id_and_platform"
     t.index ["organization_id", "status"], name: "index_devices_on_organization_id_and_status"
+  end
+
+  create_table "group_memberships", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "device_id", null: false
+    t.bigint "group_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["device_id"], name: "index_group_memberships_on_device_id"
+    t.index ["group_id", "device_id"], name: "index_group_memberships_on_group_id_and_device_id", unique: true
   end
 
   create_table "groups", force: :cascade do |t|
@@ -58,6 +67,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
   end
 
   add_foreign_key "devices", "organizations"
+  add_foreign_key "group_memberships", "devices"
+  add_foreign_key "group_memberships", "groups"
   add_foreign_key "groups", "organizations"
   add_foreign_key "users", "organizations"
 end

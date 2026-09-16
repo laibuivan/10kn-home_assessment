@@ -10,6 +10,11 @@ module Api
     class DevicesController < ApplicationController
       include Authenticatable
       include Paginatable
+      # serialize_device / filter_errors + ENUM_ERROR live in concerns since
+      # F6: Api::V1::GroupDevicesController lists devices too, and two copies
+      # of either would drift (docs/design/F6-api.md §5 OQ-API-1).
+      include DeviceSerializable
+      include DeviceFilterable
 
       # A11/A12 (SoT F3 §11) — race-condition duplicate identifiers land here
       # as a DB-level unique-index violation rather than the app-level
@@ -18,8 +23,6 @@ module Api
       # ApplicationController: the message is Device-specific semantics, not
       # a generic resource concern (docs/design/F3-api.md §5).
       rescue_from ActiveRecord::RecordNotUnique, with: :render_identifier_taken
-
-      ENUM_ERROR = "is not included in the list".freeze
 
       def index
         errors = pagination_errors
@@ -67,7 +70,19 @@ module Api
         # biến"), so the response always reflects the actually-persisted value.
         device.record_seen!
 
-        render json: { device: serialize_device(device) }
+        # The ONLY response carrying `groups` (docs/design/F6-api.md §2.6):
+        # one device means one extra join query, while adding it to #index
+        # would mean one per row. `.merge(current_organization.groups)` is a
+        # deliberate second layer — group_memberships has no org-match
+        # validation (F6-db.md §1b), so read time must not simply trust what
+        # write time promised (CLAUDE.md §4). Ordered by name so the list is
+        # stable between requests; `[]`, never null, when the device belongs
+        # to no group (SoT F6 A25).
+        render json: {
+          device: serialize_device(device).merge(
+            groups: device.groups.merge(current_organization.groups).order(:name).map { |group| { id: group.id, name: group.name } }
+          )
+        }
       end
 
       # POST /api/v1/devices — docs/design/F3-api.md §2.1.
@@ -113,17 +128,6 @@ module Api
 
       private
 
-      def filter_errors
-        errors = {}
-        errors[:platform] = [ ENUM_ERROR ] if invalid_enum?(params[:platform], Device.platforms.keys)
-        errors[:status] = [ ENUM_ERROR ] if invalid_enum?(params[:status], Device.statuses.keys)
-        errors
-      end
-
-      def invalid_enum?(value, allowed)
-        value.present? && !value.in?(allowed)
-      end
-
       # Request body is flat (no `device:` wrapper) — docs/design/F3-api.md §0.
       def create_params
         params.permit(:identifier, :name, :platform, :os_version)
@@ -141,21 +145,20 @@ module Api
         scope = policy_scope(Device)
         scope = scope.where(platform: params[:platform]) if params[:platform].present?
         scope = scope.where(status: params[:status]) if params[:status].present?
+        # `q` (F6) — the device picker in "+ Thêm device vào group" searches
+        # through this same endpoint (docs/design/F6-api.md §2.5). One named
+        # placeholder used twice, so the escaped pattern can't be built two
+        # slightly different ways; sanitize_sql_like keeps a user-typed % or _
+        # a literal character instead of a wildcard.
+        scope = scope.where("identifier ILIKE :q OR name ILIKE :q", q: "%#{Device.sanitize_sql_like(search_term)}%") if search_term.present?
         scope.order(created_at: :desc, id: :desc)
       end
 
-      def serialize_device(device)
-        {
-          id: device.id,
-          identifier: device.identifier,
-          name: device.name,
-          platform: device.platform,
-          os_version: device.os_version,
-          status: device.status,
-          last_seen_at: device.last_seen_at,
-          created_at: device.created_at,
-          updated_at: device.updated_at
-        }
+      # Blank / whitespace-only means "no filter", never an error — there is
+      # no 422 branch for q at all (docs/design/F6-api.md §2.5, same rule the
+      # Group search settled at F5).
+      def search_term
+        @search_term ||= params[:q].to_s.strip
       end
     end
   end

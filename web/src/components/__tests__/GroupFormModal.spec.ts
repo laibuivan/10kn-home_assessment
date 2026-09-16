@@ -15,6 +15,7 @@ function group(overrides: Partial<Group> = {}): Group {
     id: 42,
     name: 'Engineering',
     description: 'Máy dev & QA',
+    devices_count: 0,
     created_at: '2026-09-16T08:00:00.000Z',
     updated_at: '2026-09-16T08:00:00.000Z',
     ...overrides,

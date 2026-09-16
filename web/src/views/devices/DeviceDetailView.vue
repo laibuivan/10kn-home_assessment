@@ -6,21 +6,25 @@ import StatusBadge from '../../components/StatusBadge.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
 import DeviceFormModal from '../../components/DeviceFormModal.vue'
+import ConfirmModal from '../../components/ConfirmModal.vue'
+import DeviceGroupAddModal from '../../components/DeviceGroupAddModal.vue'
 import { useDevicesStore } from '../../stores/devices'
 import { useToastStore } from '../../stores/toast'
 import { fetchDevice } from '../../api/devices'
+import { removeGroupDevice } from '../../api/group-memberships'
 import { extractErrorMessage, isNotFoundError } from '../../utils/apiError'
-import type { Device } from '../../types/device'
+import type { DeviceDetail, DeviceGroupRef } from '../../types/device'
 
 /**
  * Device Detail (docs/design/F4-frontend.md §1–§4). Fetch state is local to
  * this component, not the Pinia store — nothing else on screen needs to read
  * this one device (same reasoning F3 applied to form state).
  *
- * "Groups đang thuộc" / "Policy đang áp dụng" are permanently the static
- * empty state at F4 (SoT OQ-1): there is no Group/Policy model yet, so no
- * API call, no loading/error of their own — F6/F9 will replace their
- * content without touching this page's route/layout.
+ * "Groups đang thuộc" became real at F6: `groups` arrives inside the very
+ * same `GET /api/v1/devices/:id` response (F6-api.md §2.6), so the block
+ * still has no fetch state of its own — it shares this page's
+ * loading/error/notFound, and every add/remove simply calls `load()` again.
+ * "Policy đang áp dụng" is still the static empty state until F9.
  */
 
 const route = useRoute()
@@ -28,8 +32,12 @@ const store = useDevicesStore()
 const toastStore = useToastStore()
 
 const GENERIC_LOAD_ERROR = 'Không tải được thông tin thiết bị.'
+const REMOVE_SUCCESS_MESSAGE = 'Đã gỡ thiết bị khỏi group'
+const REMOVE_FAILED_MESSAGE = 'Không gỡ được thiết bị, vui lòng thử lại.'
+const MEMBERSHIP_MISSING_MESSAGE = 'Thiết bị không còn là thành viên của group này.'
+const ADD_SUCCESS_MESSAGE = 'Đã thêm vào group'
 
-const device = ref<Device | null>(null)
+const device = ref<DeviceDetail | null>(null)
 const loadingDetail = ref(true)
 const notFound = ref(false)
 const loadError = ref<string | null>(null)
@@ -77,6 +85,56 @@ function onSaved(payload: { mode: 'create' | 'edit'; message: string }) {
   // A6) — the header (StatusBadge, retired banner) must reflect the change
   // immediately without the user reloading.
   load()
+}
+
+// ---------- Groups đang thuộc (F6) ----------
+/** Every button in this block is hidden for a retired device (A26) — the list itself stays readable. */
+const canEditGroups = computed(() => device.value !== null && device.value.status !== 'retired')
+
+const showAddGroupModal = ref(false)
+/** The group row awaiting confirmation; `null` means no dialog is mounted. */
+const removeTarget = ref<DeviceGroupRef | null>(null)
+
+const removeMessage = computed(() =>
+  device.value && removeTarget.value
+    ? `Gỡ thiết bị "${device.value.identifier}" khỏi group "${removeTarget.value.name}"?`
+    : '',
+)
+
+function onGroupAdded() {
+  showAddGroupModal.value = false
+  toastStore.push(ADD_SUCCESS_MESSAGE)
+  // Refetch the whole device: `groups` only ever comes back from the server,
+  // never patched client-side.
+  load()
+}
+
+/**
+ * Unlike the members tab on Group Detail (inline confirm, big table), this
+ * short list uses the shared `ConfirmModal` — UI_UX_design.md §5 does not
+ * forbid a dialog here, and there is no row to expand into.
+ */
+async function handleRemoveGroup() {
+  const target = removeTarget.value
+  const current = device.value
+  if (!target || !current) return
+  try {
+    await removeGroupDevice(target.id, current.id)
+    removeTarget.value = null
+    toastStore.push(REMOVE_SUCCESS_MESSAGE)
+    load()
+  } catch (error) {
+    removeTarget.value = null
+    if (isNotFoundError(error)) {
+      // The link is already gone — refetch so the block shows reality.
+      toastStore.push(MEMBERSHIP_MISSING_MESSAGE, 'error')
+      load()
+      return
+    }
+    // 422 (device retired, A27) / 500: the membership genuinely still
+    // exists, so nothing is refetched.
+    toastStore.push(extractErrorMessage(error, REMOVE_FAILED_MESSAGE), 'error')
+  }
 }
 
 function formatTimestamp(value: string | null): string | null {
@@ -148,12 +206,39 @@ function formatTimestamp(value: string | null): string | null {
       <div class="detail-grid">
         <div class="detail-block">
           <h4>Groups đang thuộc</h4>
-          <div data-testid="device-detail-groups-empty">
+          <ul v-if="device.groups.length > 0" class="group-link-list" data-testid="device-detail-groups-list">
+            <li v-for="groupRef in device.groups" :key="groupRef.id" data-testid="device-detail-group-row">
+              <RouterLink :to="`/groups/${groupRef.id}`">{{ groupRef.name }}</RouterLink>
+              <button
+                v-if="canEditGroups"
+                type="button"
+                class="btn btn-secondary btn-sm"
+                title="Gỡ khỏi group"
+                data-testid="device-detail-group-remove-button"
+                @click="removeTarget = groupRef"
+              >
+                ×
+              </button>
+            </li>
+          </ul>
+          <!-- Same testid as F4, but now it only shows when the device
+               really belongs to nothing (A25). -->
+          <div v-else data-testid="device-detail-groups-empty">
             <div class="placeholder-box">
               <span class="ic" aria-hidden="true">▣</span>
               <span>Chưa thuộc group nào.</span>
             </div>
           </div>
+          <button
+            v-if="canEditGroups"
+            type="button"
+            class="btn btn-secondary"
+            style="width: 100%; justify-content: center; margin-top: 10px"
+            data-testid="device-detail-add-group-button"
+            @click="showAddGroupModal = true"
+          >
+            + Thêm vào group
+          </button>
         </div>
         <div class="detail-block">
           <h4>Policy đang áp dụng</h4>
@@ -169,4 +254,25 @@ function formatTimestamp(value: string | null): string | null {
   </AppShell>
 
   <DeviceFormModal v-if="showModal && device" mode="edit" :device="device" @saved="onSaved" @cancel="closeModal" />
+
+  <DeviceGroupAddModal
+    v-if="showAddGroupModal && device"
+    :device-id="device.id"
+    :device-identifier="device.identifier"
+    @added="onGroupAdded"
+    @cancel="showAddGroupModal = false"
+  />
+
+  <ConfirmModal
+    v-if="removeTarget && device"
+    title="Gỡ khỏi group?"
+    :message="removeMessage"
+    confirm-label="Gỡ"
+    destructive
+    :on-confirm="handleRemoveGroup"
+    test-id="confirm-modal"
+    confirm-test-id="confirm-modal-confirm"
+    cancel-test-id="confirm-modal-cancel"
+    @cancel="removeTarget = null"
+  />
 </template>

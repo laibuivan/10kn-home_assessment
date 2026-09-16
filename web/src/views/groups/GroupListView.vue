@@ -48,6 +48,9 @@ const searchTerm = computed(() => activeQuery.value.q ?? '')
 const columns: DataTableColumn<Group>[] = [
   { key: 'name', label: 'Name', value: (row) => row.name },
   { key: 'description', label: 'Description' },
+  // Restored at F6 — F5 left it out only because the API had no
+  // `devices_count` yet (SoT F5 OQ-4); it now comes with every group.
+  { key: 'devices_count', label: 'Số device', value: (row) => String(row.devices_count) },
   { key: 'actions', label: '', cellClass: 'actions-cell' },
 ]
 
@@ -78,7 +81,7 @@ const confirmTarget = ref<Group | null>(null)
 
 const confirmMessage = computed(() =>
   confirmTarget.value
-    ? `Xóa group "${confirmTarget.value.name}" sẽ gỡ toàn bộ liên kết của group này với device và policy đang gán. Thiết bị và policy không bị xóa. Hành động không thể hoàn tác.`
+    ? `Xóa group "${confirmTarget.value.name}" sẽ gỡ toàn bộ liên kết với ${confirmTarget.value.devices_count} device và policy đang gán cho group này. Thiết bị và policy không bị xóa. Hành động không thể hoàn tác.`
     : '',
 )
 
@@ -119,7 +122,12 @@ async function handleDeleteConfirm() {
   }
 }
 
-/** Exactly two items — no "Xem chi tiết" (F5 has no group detail page) and nothing disabled. */
+/** Row navigation to Group Detail — added at F6 with the `/groups/:id` route. */
+function viewDetail(group: Group) {
+  router.push(`/groups/${group.id}`)
+}
+
+/** Three items since F6 — "Xem chi tiết" came back with the detail page. Nothing disabled. */
 function rowActions(group: Group): ActionsMenuItem[] {
   return [
     { key: 'edit', label: 'Sửa', onClick: () => openEditModal(group), testId: 'group-action-edit' },
@@ -129,6 +137,7 @@ function rowActions(group: Group): ActionsMenuItem[] {
       onClick: () => openDeleteConfirm(group),
       testId: 'group-action-delete',
     },
+    { key: 'view', label: 'Xem chi tiết', onClick: () => viewDetail(group), testId: 'group-action-view' },
   ]
 }
 
@@ -199,6 +208,16 @@ watch(
   activeQuery,
   () => {
     load()
+  },
+  { immediate: true },
+)
+
+// Remembers "where the list was" so Group Detail's "◀ Quay lại danh sách"
+// restores the exact search/page (same mechanism DeviceListView has for F4).
+watch(
+  () => route.fullPath,
+  (fullPath) => {
+    store.lastListLocation = fullPath
   },
   { immediate: true },
 )
@@ -280,6 +299,7 @@ watch(
         :rows="store.groups"
         :row-key="(row: Group) => row.id"
         :loading="store.loading"
+        :on-row-click="viewDetail"
         test-id="groups-table"
         row-test-id="group-row"
       >
@@ -289,7 +309,11 @@ watch(
           </span>
         </template>
         <template #cell-actions="{ row }">
-          <ActionsMenu :items="rowActions(row as Group)" />
+          <!-- Required now the row itself is clickable: without it, opening
+               the "⋯" menu would also navigate to the detail page. -->
+          <span @click.stop>
+            <ActionsMenu :items="rowActions(row as Group)" />
+          </span>
         </template>
       </DataTable>
 

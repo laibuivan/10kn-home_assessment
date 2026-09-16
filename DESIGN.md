@@ -13,7 +13,7 @@ tương ứng đánh dấu **TODO**, không bịa trước.
 - [Auth / phân quyền / tách Organization](#auth--phân-quyền--tách-organization) ✅ F0
 - [Giả định](#giả-định) — TODO
 - [Rủi ro production còn lại](#rủi-ro-production-còn-lại) — TODO
-- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5 done)
+- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5, F6 done)
 
 ---
 
@@ -149,6 +149,80 @@ eslint+vitest. 39 acceptance scenario của F5 vẫn được viết đầy đ�
 `docs/sot/F5-group-crud.md` §11 (dùng làm hợp đồng hành vi, ánh xạ trực tiếp
 vào RSpec request spec + Vitest component test thay vì Gherkin/Playwright).
 Không có file `features/f5-group-crud.feature` nào được tạo.
+
+### F6 (Group membership tại scale — thêm/gỡ device, chịu 10.000 device, idempotent)
+- **AI làm**: toàn bộ vòng đời — SoT (8 OQ), 3 bản thiết kế + preview HTML,
+  plan (39 task/6 wave), implement (2 nhánh BE/FE chạy song song), gate. **User
+  ủy quyền cho AI tự review & approve toàn bộ** (SoT, cả 3 design, mọi open
+  question, plan) trong phiên làm việc này, cùng cách đã làm từ F4 — không
+  dừng lại chờ duyệt từng bước, kể cả bước implement.
+- **Trả 2 món nợ F5 đã ghi rõ lúc approve** (`docs/design/F5-db.md` §4a,
+  `docs/sot/F5-group-crud.md` OQ-4/OQ-5): `Group has_many :group_memberships,
+  dependent: :delete_all` (xóa Group không để `group_memberships` mồ côi,
+  Device không bị xóa — test cả ở model spec lẫn request spec, kể cả ở quy mô
+  10.000 dòng) và cột "Số device" + action "Xem chi tiết" trên Group List.
+- **Quyết định phạm vi quan trọng nhất (SoT OQ-1)**: `docs/backlog.md` mô tả
+  F6 phải "chịu 10.000 device, idempotent", còn `UI_UX_design.md` §6.2 vẽ thêm
+  tính năng tùy chọn "thêm hàng loạt theo filter" (cần kiến trúc Solid Queue
+  job như gán Policy ở F8). AI chọn **không** làm bulk-by-filter — yêu cầu
+  "chịu 10.000 device" được đáp ứng đủ qua phân trang server-side + `upsert_all`
+  đồng bộ (cap 500 device/request), vì `CLAUDE.md` §4 chỉ bắt buộc async job
+  cho **gán Policy** cho Group lớn, không cho membership. Giữ đúng ranh giới
+  scope F6/F8 thay vì làm sớm 1 phần việc của F8.
+- **Tự thiết kế (không có trong PRD, phải tự quyết định và ghi rõ)**:
+  - `AsyncSearchSelect.vue` — component dùng chung build lần đầu (debounce,
+    chọn 1/nhiều, chip lựa chọn, loading/empty trong dropdown), viết đủ tổng
+    quát (fetcher do caller truyền vào, không biết gì về Device/Group/Policy
+    cụ thể) để F7/F8 tái dùng nguyên props, không phải sửa lại khi tới lượt.
+  - `POST .../devices` dùng `upsert_all(on_duplicate: :skip)` — cặp đã tồn tại
+    **không** bump `updated_at`, để nhất quán với quyết định không thêm
+    `belongs_to :group, touch: true` (tránh 2 chuẩn khác nhau giữa bulk-add
+    qua `upsert_all` — bỏ qua mọi callback — và gỡ đơn lẻ đi qua model).
+  - `DELETE .../devices/:device_id` dùng `delete_all` + kiểm tra
+    `deleted_count` (không phải `destroy!`/`find_by` mù) — siết hơn 1 mức so
+    với văn bản gợi ý ban đầu ở `docs/design/F6-db.md`, để đảm bảo đúng nghĩa
+    đen "đúng 1 request thành công" của acceptance scenario race-gỡ dưới race
+    thật sự đồng thời (2 request cùng thấy record tồn tại trước khi request
+    nào `DELETE` xong).
+  - `devices_count` tính bằng `COUNT`/`GROUP BY` trực tiếp, không counter
+    cache — vì `upsert_all` bỏ qua AR callback nên counter cache mặc định của
+    Rails sẽ lệch nếu không tự cập nhật thủ công mọi nơi ghi; đánh đổi chấp
+    nhận được ở quy mô hiện tại (hàng chục–hàng trăm Group/trang).
+- **Chỗ AI sai đã tự phát hiện và sửa (trước khi báo Done)**:
+  - RSpec request spec ban đầu gửi `device_ids: []` bằng form-encode mặc định
+    của test helper — Rails/Rack biến `[]` thành `device_ids[]=` rồi controller
+    nhận `[""]`, rơi nhầm vào nhánh "toàn bộ không hợp lệ" (A11) thay vì
+    "device_ids rỗng/sai kiểu" (A13) mà scenario đó thực sự muốn kiểm. Lỗi ở
+    **test**, không phải code sản phẩm — sửa bằng cách gửi request dạng
+    `as: :json` (đúng cách FE/axios thật sự gửi), nhờ đó 4 case
+    `nil`/string/object/mảng-rỗng mới thật sự kiểm được đúng nhánh validate.
+  - Test đếm N+1 cho `GroupsController#index` (so số query giữa trang có 5
+    Group và trang có 10 Group) lần đầu fail "ngược đời" (5 group ra nhiều
+    query hơn 10 group) vì request đầu tiên của mỗi example RSpec luôn tốn
+    thêm vài query khởi tạo connection/schema — sửa bằng 1 request khởi động
+    trước khi đo, không đổi assertion.
+  - Lần đầu viết danh sách kết quả `AsyncSearchSelect` bằng `v-for` và
+    `v-else` trên cùng 1 phần tử — vi phạm `vue/no-use-v-if-with-v-for`; ESLint
+    tự bắt được ngay, sửa bằng cách bọc `<template v-else>`.
+  - 2 case Vitest tự viết sai lúc đầu (banner có ký tự `⚠` nên `toBe` fail
+    thay vì `toContain`; stub phân trang giữ `current_page: 2` sau khi đổi
+    filter dù thiết kế yêu cầu reset về trang 1) — cả 2 đều sửa **spec cho
+    đúng thiết kế**, không sửa code để né lỗi.
+  - 9 assertion cũ của F4/F5 (7 ở RSpec, 2 ở Vitest `GroupListView.spec.ts`)
+    **phải sửa** dù plan ghi "không đụng spec cũ" của các gate regression (T5,
+    T14, T16, T39) — vì các case này khẳng định tường minh **sự vắng mặt**
+    của đúng những gì F6 được approve để thêm vào (`GET /groups/:id` chưa tồn
+    tại, `devices_count` chưa lộ ra, `GroupPolicy#show?` deny-by-default, Group
+    List chưa có "Xem chi tiết"/row-click) — mâu thuẫn trực tiếp với hợp đồng
+    3 bản thiết kế đã approved, không phải né lỗi. Mỗi case được viết lại kèm
+    comment nêu rõ trước đây khẳng định điều ngược lại và vì sao F6 đổi.
+  - `FormModal.vue` (component dùng chung, F3) được thêm 1 prop
+    `submitDisabled?: boolean` (default `false`, thuần cộng thêm) — thiết kế
+    frontend ghi "tái dùng nguyên vẹn, không sửa" nhưng 2 modal mới của F6 cần
+    disable nút submit khi chưa chọn gì trong `AsyncSearchSelect`, và dùng
+    `submitting` cho việc này sẽ hiện sai trạng thái (spinner) lúc chưa submit
+    gì. Spec cũ của `FormModal`/`DeviceFormModal`/`GroupFormModal` xanh
+    nguyên, không đổi hành vi mặc định.
 
 ### F5 (Group CRUD — list/create/edit/xóa an toàn)
 - **AI làm**: toàn bộ vòng đời còn lại của quy trình (SoT → 3 bản thiết kế +

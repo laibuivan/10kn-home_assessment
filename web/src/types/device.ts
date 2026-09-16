@@ -39,7 +39,29 @@ export interface DeviceListResponse {
 export interface DeviceQueryParams {
   platform?: DevicePlatform
   status?: DeviceStatus
+  /**
+   * NEW at F6 — free-text search over identifier/name (F6-api.md §2.5).
+   * Only `AsyncSearchSelect`'s device fetcher sends it; `DeviceListView` is
+   * deliberately unchanged and grows no search box (SoT F6 OQ-7).
+   */
+  q?: string
   page: number
+}
+
+/** One Group in a device's "Groups đang thuộc" block — `{ id, name }` only (F6-api.md §2.6). */
+export interface DeviceGroupRef {
+  id: number
+  name: string
+}
+
+/**
+ * The real shape of `GET /api/v1/devices/:id` (F6-api.md §2.6): a Device
+ * plus the groups it belongs to, embedded in the same response. Only the
+ * detail endpoint returns `groups` — list/create/update keep returning a
+ * bare `Device`, so they must not be typed with this.
+ */
+export interface DeviceDetail extends Device {
+  groups: DeviceGroupRef[]
 }
 
 /**

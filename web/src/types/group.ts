@@ -4,17 +4,25 @@
  */
 
 import type { PaginationMeta } from './ui'
+import type { DevicePlatform, DeviceStatus } from './device'
 
 export interface Group {
   id: number
   name: string
   /** `null` when there is no description — the API never returns `""` (F5-api.md §2.5). */
   description: string | null
+  /**
+   * NEW at F6 — every Group response (index/show/create/update) carries it,
+   * because the API has a single `serialize_group` (F6-api.md §1). Never
+   * added to/subtracted from on the client: a mutation refetches and reads
+   * the real count back (UI_UX_design.md §0.3).
+   */
+  devices_count: number
   created_at: string
   updated_at: string
 }
-// No `devices_count` (SoT F5 OQ-4) and no `organization_id` (F5-api.md
-// §2.5) — neither is in the contract, so neither may be typed here.
+// Still no `organization_id` (F5-api.md §2.5) — it is not in the contract,
+// so it may not be typed here.
 
 export interface GroupListResponse {
   groups: Group[]
@@ -50,4 +58,16 @@ export interface GroupCreatePayload {
 export interface GroupUpdatePayload {
   name?: string
   description?: string
+}
+
+/**
+ * Query params for `GET /api/v1/groups/:id/devices` (F6-api.md §2.2) — kept
+ * separate from `GroupQueryParams`: a different endpoint with a different
+ * field set (device filters, no `q`), so sharing one type would let a caller
+ * send `q` to an endpoint that ignores it.
+ */
+export interface GroupDevicesQueryParams {
+  page: number
+  platform?: DevicePlatform
+  status?: DeviceStatus
 }
