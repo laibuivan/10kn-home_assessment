@@ -31,12 +31,21 @@ body {
 .btn-secondary:hover { background: var(--surface-2); }
 .btn-danger { color: var(--on-accent); background: var(--danger); }
 .btn:disabled { cursor: default; opacity: 0.85; }
+/* Generalizes the .submit-btn[data-busy] spinner pattern (below, F0/LoginView)
+   to any .btn, so FormModal's "Lưu" button reuses the same spinner instead
+   of a component-specific style (F3-frontend.md §5). */
+.btn .spinner { display: none; }
+.btn[data-busy="true"] .spinner { display: inline-block; }
+.btn[data-busy="true"] .btn-label { display: none; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
 .field input, .field select, .field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; width: 100%; }
 .field input::placeholder { color: var(--text-faint); font-family: var(--font-mono); font-size: 13px; }
 .field input:focus, .field select:focus { border-color: var(--accent); background: var(--surface); }
+.field input:disabled, .field select:disabled { opacity: 0.6; cursor: not-allowed; }
+.field.has-error input, .field.has-error select { border-color: var(--danger); }
+.field-error { color: var(--danger); font-size: 12px; }
 
 .error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
 .error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
@@ -56,6 +65,8 @@ body {
  * (docs/design/F2-frontend.md §5).
  */
 .data-table.is-clickable tr:hover td { cursor: pointer; }
+.data-table td.actions-cell, .actions-cell { text-align: right; }
+.tooltip-wrap { display: inline-block; }
 .table-wrap { overflow-x: auto; }
 .pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); }
 .pagination .steps { display: flex; gap: 4px; }
@@ -98,6 +109,12 @@ body {
 .modal h3 { font-family: var(--font-display); font-size: 15.5px; font-weight: 600; margin: 0; }
 .modal p { font-size: 13.5px; color: var(--text-muted); margin: 0; }
 .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+.modal .modal-body { display: flex; flex-direction: column; gap: 12px; }
+
+.toast-stack { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 30; }
+.toast { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding: 10px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(15, 23, 33, 0.12); }
+.toast.success { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+.toast.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
 
 /* ---------- Login screen ---------- */
 .login-stage { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px; background: radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%), var(--bg); }

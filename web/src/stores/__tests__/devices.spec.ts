@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useDevicesStore } from '../devices'
-import { fetchDeviceList } from '../../api/devices'
+import { fetchDeviceList, createDevice, updateDevice } from '../../api/devices'
 import type { Device, DeviceListResponse } from '../../types/device'
 
 vi.mock('../../api/devices', () => ({
   fetchDeviceList: vi.fn(),
+  createDevice: vi.fn(),
+  updateDevice: vi.fn(),
 }))
 
 function device(overrides: Partial<Device> = {}): Device {
@@ -144,5 +146,51 @@ describe('useDevicesStore', () => {
     await first
 
     expect(store.devices.map((d) => d.identifier)).toEqual(['NEW'])
+  })
+
+  describe('createDevice', () => {
+    it('calls the API layer and returns the created device', async () => {
+      const created = device({ id: 99, identifier: 'IPHONE-042' })
+      vi.mocked(createDevice).mockResolvedValueOnce({ device: created })
+
+      const store = useDevicesStore()
+      const payload = { identifier: 'IPHONE-042', name: 'Alice iPhone', platform: 'ios' as const }
+      const result = await store.createDevice(payload)
+
+      expect(createDevice).toHaveBeenCalledWith(payload)
+      expect(result).toEqual(created)
+    })
+
+    it('throws the error unhandled when the API call fails', async () => {
+      const error = { response: { status: 422, data: { errors: { identifier: ["can't be blank"] } } } }
+      vi.mocked(createDevice).mockRejectedValueOnce(error)
+
+      const store = useDevicesStore()
+      await expect(
+        store.createDevice({ identifier: '', name: '', platform: 'ios' }),
+      ).rejects.toEqual(error)
+    })
+  })
+
+  describe('updateDevice', () => {
+    it('calls the API layer with the id and payload, and returns the updated device', async () => {
+      const updated = device({ id: 7, name: 'Updated Name' })
+      vi.mocked(updateDevice).mockResolvedValueOnce({ device: updated })
+
+      const store = useDevicesStore()
+      const payload = { name: 'Updated Name' }
+      const result = await store.updateDevice(7, payload)
+
+      expect(updateDevice).toHaveBeenCalledWith(7, payload)
+      expect(result).toEqual(updated)
+    })
+
+    it('throws the error unhandled when the API call fails', async () => {
+      const error = { response: { status: 422, data: { errors: { base: ['Thiết bị đã retired, không thể sửa'] } } } }
+      vi.mocked(updateDevice).mockRejectedValueOnce(error)
+
+      const store = useDevicesStore()
+      await expect(store.updateDevice(7, { name: 'x' })).rejects.toEqual(error)
+    })
   })
 })

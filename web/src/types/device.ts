@@ -40,6 +40,30 @@ export interface DeviceQueryParams {
   page: number
 }
 
+/**
+ * Body for `POST /api/v1/devices` — mirrors the `create_params` strong
+ * params exactly (F3-api.md §1/§2.1): no `status`, no `organization_id`, the
+ * server always ignores/defaults those regardless of what is sent.
+ */
+export interface DeviceCreatePayload {
+  identifier: string
+  name: string
+  platform: DevicePlatform
+  os_version?: string
+}
+
+/**
+ * Body for `PATCH /api/v1/devices/:id` — mirrors `update_params` exactly
+ * (F3-api.md §1/§2.2): no `identifier`, no `organization_id` — both are
+ * immutable from the client's perspective.
+ */
+export interface DeviceUpdatePayload {
+  name?: string
+  platform?: DevicePlatform
+  os_version?: string
+  status?: DeviceStatus
+}
+
 export function isDevicePlatform(value: unknown): value is DevicePlatform {
   return typeof value === 'string' && (DEVICE_PLATFORMS as readonly string[]).includes(value)
 }

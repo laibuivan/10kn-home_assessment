@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
-import { fetchDeviceList } from '../api/devices'
+import { createDevice, fetchDeviceList, updateDevice } from '../api/devices'
 import { extractErrorMessage } from '../utils/apiError'
-import type { Device, DeviceListMeta, DeviceQueryParams } from '../types/device'
+import type {
+  Device,
+  DeviceCreatePayload,
+  DeviceListMeta,
+  DeviceQueryParams,
+  DeviceUpdatePayload,
+} from '../types/device'
 
 const LOAD_ERROR_MESSAGE = 'Không tải được danh sách thiết bị.'
 
@@ -51,6 +57,22 @@ export const useDevicesStore = defineStore('devices', {
       } finally {
         if (requestId === this.lastRequestId) this.loading = false
       }
+    },
+
+    /**
+     * F3-frontend.md §3: no store-level loading/error for these — a single
+     * form submission's state belongs to the component that owns the form
+     * (`DeviceFormModal`), same principle as `authStore.login`. Errors are
+     * thrown unhandled so the caller decides what to render.
+     */
+    async createDevice(payload: DeviceCreatePayload): Promise<Device> {
+      const response = await createDevice(payload)
+      return response.device
+    },
+
+    async updateDevice(id: number, payload: DeviceUpdatePayload): Promise<Device> {
+      const response = await updateDevice(id, payload)
+      return response.device
     },
   },
 })

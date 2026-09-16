@@ -42,6 +42,16 @@ export type World = {
   orgDeviceIdentifiers?: Record<string, string[]>
   /** Devices collected while paging through the API across all pages (org-isolation scenario). */
   collectedDevices?: any[]
+
+  // ---- F3 (device create/edit) additions — see features/steps/f3-device-create-edit.steps.ts ----
+  /** Identifier of the device most recently created/targeted by a scenario, for locating its row/response afterwards. */
+  lastCreatedIdentifier?: string
+  /** DB ids of devices created directly via `rails runner`, keyed by identifier, so PATCH steps can address them by URL. */
+  deviceIdsByIdentifier?: Record<string, number>
+  /** Snapshot of a device's fields taken right after fixture creation, to assert "nothing changed" after a blocked update (retired immutability). */
+  originalDevice?: { identifier: string; name: string; platform: string; os_version?: string | null; status: string }
+  /** Pair of results from firing two near-simultaneous create requests (race-condition scenario). */
+  raceResults?: Array<{ status: number; body: any }>
 }
 
 export const test = base.extend<{ world: World }>({

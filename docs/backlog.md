@@ -9,7 +9,7 @@ biết scope + dependency, rồi đọc `PRD.md` để lấy chi tiết nghiệp
 | F0 | Foundation: ~~Rails API + Vue skeleton, Postgres~~ (done, PR #1/#2) + Organization/User model, JWT auth + **Login page** (hấp thụ F1), seed 2 org | (nền tảng) + Login | — | [approved](sot/F0-foundation.md) | [DB](design/F0-db.md) [API](design/F0-api.md) [Frontend](design/F0-frontend.md) approved | [done](plan/F0-foundation.md) |
 | ~~F1~~ | ~~Login & session~~ — gộp vào F0 (SoT F0 đã đặc tả login end-to-end từ POST /api/v1/sessions tới Login page; tách riêng SoT/design cho F1 chỉ trùng lặp) | Login | — | — | — | — |
 | F2 | Device list (phân trang + lọc platform/status) — **Done** | Devices | F0 | [approved](sot/F2-device-list.md) | [DB](design/F2-db.md) [API](design/F2-api.md) [Frontend](design/F2-frontend.md) approved | [done](plan/F2-device-list.md) |
-| F3 | Device create/edit + validate (identifier unique trong org) | Devices | F2 | — | — | — |
+| F3 | Device create/edit + validate (identifier unique trong org) — **Done** | Devices | F2 | [approved](sot/F3-device-create-edit.md) | [DB](design/F3-db.md) [API](design/F3-api.md) [Frontend](design/F3-frontend.md) approved | [done](plan/F3-device-create-edit.md) |
 | F4 | Device detail (info, group đang thuộc, policy đang áp dụng) | Device detail | F3 | — | — | — |
 | F5 | Group CRUD (list/create/edit/xóa an toàn) | Groups | F0 | — | — | — |
 | F6 | Group membership tại scale (thêm/gỡ device, chịu 10.000 device, idempotent) | Groups (chi tiết) | F5, F3 | — | — | — |

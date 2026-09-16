@@ -12,6 +12,16 @@ RSpec.describe Device, type: :model do
       expect(dup.errors[:identifier]).to be_present
     end
 
+    it "reports the Vietnamese message from Device::IDENTIFIER_TAKEN_MESSAGE (SoT F3 §6)" do
+      org = create(:organization)
+      create(:device, organization: org, identifier: "DEV-0001")
+
+      dup = build(:device, organization: org, identifier: "DEV-0001")
+      dup.valid?
+
+      expect(dup.errors[:identifier]).to eq([ Device::IDENTIFIER_TAKEN_MESSAGE ])
+    end
+
     it "is NOT unique across Organizations (CLAUDE.md §4: unique in-org only, not global)" do
       identifier = "SHARED-0001"
       create(:device, organization: create(:organization), identifier: identifier)
@@ -90,6 +100,67 @@ RSpec.describe Device, type: :model do
       create(:device, organization: create(:organization))
 
       expect(org.devices).to contain_exactly(mine)
+    end
+  end
+
+  describe "#restore_immutable_identifier (F3 SoT §11 'identifier bất biến')" do
+    it "keeps the original identifier even when a different value is assigned and saved" do
+      device = create(:device, identifier: "IPHONE-001")
+
+      device.identifier = "IPHONE-999"
+      device.save
+
+      expect(device.identifier).to eq("IPHONE-001")
+      expect(device.reload.identifier).to eq("IPHONE-001")
+    end
+
+    it "does not error out — the change is silently ignored, not rejected" do
+      device = create(:device, identifier: "IPHONE-001")
+
+      device.identifier = "IPHONE-999"
+
+      expect(device.save).to be(true)
+    end
+  end
+
+  describe "#block_all_changes_when_retired (F3 SoT §11 'retired bất biến')" do
+    it "blocks any update once status_was is retired, even a true no-op" do
+      device = create(:device, :retired)
+
+      expect(device.update(name: device.name)).to be(false)
+      expect(device.errors[:base]).to eq([ Device::RETIRED_IMMUTABLE_MESSAGE ])
+    end
+
+    it "blocks a field change on an already-retired device and persists nothing" do
+      device = create(:device, :retired, name: "Original Name")
+
+      result = device.update(name: "Hacked Name")
+
+      expect(result).to be(false)
+      expect(device.reload.name).to eq("Original Name")
+    end
+
+    it "puts the error on :base, not on any specific field" do
+      device = create(:device, :retired)
+
+      device.update(name: "")
+
+      expect(device.errors[:base]).to eq([ Device::RETIRED_IMMUTABLE_MESSAGE ])
+    end
+
+    it "runs no other validation alongside the retired-block (throw(:abort) short-circuits the chain)" do
+      device = create(:device, :retired)
+
+      device.update(name: nil, platform: nil)
+
+      expect(device.errors.messages.keys).to eq([ :base ])
+    end
+
+    it "still allows transitioning INTO retired from active (status_was is checked, not status)" do
+      device = create(:device, status: :active)
+
+      expect(device.update(status: :retired)).to be(true)
+      expect(device.reload.status).to eq("retired")
     end
   end
 end
