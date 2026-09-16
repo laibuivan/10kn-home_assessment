@@ -78,3 +78,36 @@ seed_devices!(organization: acme, prefix: "ACME", count: 47)
 seed_devices!(organization: globex, prefix: "GLBX", count: 8)
 
 puts "Seeded #{Device.count} devices (#{acme.devices.count} for #{acme.name}, #{globex.devices.count} for #{globex.name})."
+
+# ---------------------------------------------------------------------------
+# Groups (F5) — a handful per org so the Groups screen, its search box and the
+# "same name allowed in a different org" rule are all demonstrable by hand.
+# No 25-row pagination fixture here: that is spec data (FactoryBot), not seed
+# data (docs/design/F5-db.md §2).
+# Idempotent like everything above: keyed on (organization, name), which is
+# exactly the composite unique index the schema enforces.
+def upsert_group!(organization:, name:, description:)
+  Group.find_or_create_by!(organization: organization, name: name) do |group|
+    group.description = description
+  end
+end
+
+ACME_GROUPS = [
+  [ "Sales Team", "Máy của đội kinh doanh, đi công tác thường xuyên." ],
+  [ "Engineering", "Laptop dev, cài đặt quyền cao hơn mặc định." ],
+  [ "Field Ops", nil ],
+  [ "Executives", "Thiết bị của ban lãnh đạo." ]
+].freeze
+
+# "Sales Team" deliberately appears in BOTH orgs — proves PRD's "unique in
+# Organization, not globally" for Group.name the same way shared.login@ does
+# for User.email.
+GLOBEX_GROUPS = [
+  [ "Sales Team", "Cùng tên với group của Acme — hợp lệ vì unique theo org." ],
+  [ "Support", "Máy trực tổng đài." ]
+].freeze
+
+ACME_GROUPS.each { |name, description| upsert_group!(organization: acme, name: name, description: description) }
+GLOBEX_GROUPS.each { |name, description| upsert_group!(organization: globex, name: name, description: description) }
+
+puts "Seeded #{Group.count} groups (#{acme.groups.count} for #{acme.name}, #{globex.groups.count} for #{globex.name})."

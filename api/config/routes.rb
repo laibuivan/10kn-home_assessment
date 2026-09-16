@@ -8,6 +8,7 @@ Rails.application.routes.draw do
       resources :sessions, only: [ :create ]
       resource :me, only: [ :show ], controller: "me"
       resources :devices, only: [ :index, :show, :create, :update ]
+      resources :groups, only: [ :index, :create, :update, :destroy ]
     end
   end
 end

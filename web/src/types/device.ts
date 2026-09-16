@@ -3,6 +3,8 @@
  * docs/design/F2-api.md §1 exactly (no extra/renamed fields).
  */
 
+import type { PaginationMeta } from './ui'
+
 export const DEVICE_PLATFORMS = ['ios', 'android', 'macos'] as const
 export const DEVICE_STATUSES = ['active', 'inactive', 'retired'] as const
 
@@ -21,12 +23,12 @@ export interface Device {
   updated_at: string
 }
 
-export interface DeviceListMeta {
-  current_page: number
-  per_page: number
-  total_count: number
-  total_pages: number
-}
+/**
+ * The device list's `meta` is the project-wide pagination envelope — kept
+ * under its original name so every existing import keeps working, while
+ * there is only one definition of the shape (F5-frontend.md §5 OQ-FE-2).
+ */
+export type DeviceListMeta = PaginationMeta
 
 export interface DeviceListResponse {
   devices: Device[]

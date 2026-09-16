@@ -23,6 +23,7 @@ import {
   type DeviceQueryParams,
 } from '../../types/device'
 import type { DataTableColumn, FilterDefinition } from '../../types/ui'
+import { firstQueryValue } from '../../utils/queryParams'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,11 +38,6 @@ const toastStore = useToastStore()
  * the dropdowns can only produce valid values, so a 422 banner would only
  * ever be shown to someone who typed the URL themselves (§5 OQ-FE-1/2).
  */
-/** vue-router repeats a query key as an array (`?page=1&page=2`) — only the first value is ever meaningful here. */
-function firstQueryValue(value: string | (string | null)[] | null): string | null {
-  return Array.isArray(value) ? (value[0] ?? null) : value
-}
-
 const activeQuery = computed<DeviceQueryParams>(() => {
   const parsedPage = Number(firstQueryValue(route.query.page))
   const page = Number.isInteger(parsedPage) && parsedPage >= 1 ? parsedPage : 1

@@ -1,12 +1,29 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import ToastContainer from './ToastContainer.vue'
 
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
+
+/**
+ * Which sidebar section is highlighted (F5-frontend.md §2.2 / OQ-FE-3).
+ *
+ * RouterLink's own `active-class` was the first choice, but it only matches
+ * when the current route's matched record IS the link's target: `/devices`
+ * and `/devices/:id` are two sibling top-level records, not nested ones, so
+ * the Devices item went dark on F4's detail page — exactly the regression
+ * OQ-FE-3 set out to avoid. The alternative that OQ-FE-3 spells out for
+ * this case is a path prefix test, which is what this is (`startsWith`,
+ * never `===`). The trailing "/" keeps a future `/devices-archive` from
+ * lighting up Devices.
+ */
+function isSectionActive(prefix: string): boolean {
+  return route.path === prefix || route.path.startsWith(`${prefix}/`)
+}
 
 function toggleMenu() {
   menuOpen.value = !menuOpen.value
@@ -35,17 +52,27 @@ function logout() {
         <span class="name">Device Console</span>
       </div>
       <!--
-        F0 only ever has the Devices route — "active" is hard-coded here on
-        purpose. F5/F7 add real Groups/Policies routes; whichever feature
-        does that also has to make this nav highlight the current route
-        instead (see docs/design/F0-frontend.md §5 risk note).
+        Only Policies is still a placeholder — it becomes a link when F7
+        adds the route. Highlighting: see `isSectionActive` above.
       -->
-      <RouterLink to="/devices" class="nav-item active">
+      <RouterLink
+        to="/devices"
+        class="nav-item"
+        :class="{ active: isSectionActive('/devices') }"
+        data-testid="nav-devices"
+      >
         <span class="ic">▣</span> Devices
       </RouterLink>
-      <span class="nav-item future"><span class="ic">▢</span> Groups</span>
+      <RouterLink
+        to="/groups"
+        class="nav-item"
+        :class="{ active: isSectionActive('/groups') }"
+        data-testid="nav-groups"
+      >
+        <span class="ic">▣</span> Groups
+      </RouterLink>
       <span class="nav-item future"><span class="ic">▢</span> Policies</span>
-      <div class="sidebar-note">Groups/Policies ẩn ở F0 —<br />hiện khi F5/F7 thêm route</div>
+      <div class="sidebar-note">Policies hiện khi F7 thêm route</div>
     </aside>
 
     <div class="shell-main">
