@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_141716) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_005106) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -55,6 +55,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_141716) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "policies", force: :cascade do |t|
+    t.jsonb "configuration", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.bigint "organization_id", null: false
+    t.integer "status", default: 0, null: false
+    t.string "type", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id", "created_at", "id"], name: "index_policies_on_organization_id_and_created_at_and_id"
+    t.index ["organization_id", "name"], name: "index_policies_on_organization_id_and_name", unique: true
+    t.index ["organization_id", "status"], name: "index_policies_on_organization_id_and_status"
+  end
+
   create_table "users", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "email", null: false
@@ -70,5 +83,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_141716) do
   add_foreign_key "group_memberships", "devices"
   add_foreign_key "group_memberships", "groups"
   add_foreign_key "groups", "organizations"
+  add_foreign_key "policies", "organizations"
   add_foreign_key "users", "organizations"
 end

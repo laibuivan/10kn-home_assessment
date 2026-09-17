@@ -91,6 +91,16 @@ describe('FormModal', () => {
     expect(wrapper.find('[data-testid=device-form-cancel]').attributes('disabled')).toBeDefined()
   })
 
+  it('does not add the modal-wide class by default (backward compatible for Group/Device)', () => {
+    const wrapper = mountModal()
+    expect(wrapper.find('form.modal').classes()).not.toContain('modal-wide')
+  })
+
+  it('adds the modal-wide class when wide is true (F7 PolicyFormModal)', () => {
+    const wrapper = mountModal({ wide: true })
+    expect(wrapper.find('form.modal').classes()).toContain('modal-wide')
+  })
+
   it('removes the document keydown listener on unmount', () => {
     const removeSpy = vi.spyOn(document, 'removeEventListener')
     const wrapper = mountModal()

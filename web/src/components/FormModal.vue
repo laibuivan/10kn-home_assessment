@@ -32,6 +32,14 @@ const props = withDefaults(
     bannerTestId?: string
     submitTestId?: string
     cancelTestId?: string
+    /**
+     * NEW at F7 (docs/design/F7-frontend.md §2.4) — the JSON editor +
+     * Format button in `PolicyFormModal` need more room than the base
+     * `.modal { max-width: 360px }` gives Group/Device. Backward compatible:
+     * defaults to `false`, so every existing caller (`GroupFormModal`,
+     * `DeviceFormModal`) keeps rendering byte-identical CSS/behavior.
+     */
+    wide?: boolean
   }>(),
   {
     submitting: false,
@@ -43,6 +51,7 @@ const props = withDefaults(
     bannerTestId: undefined,
     submitTestId: undefined,
     cancelTestId: undefined,
+    wide: false,
   },
 )
 
@@ -66,7 +75,7 @@ onUnmounted(() => document.removeEventListener('keydown', onEscape))
 
 <template>
   <div class="modal-backdrop" :data-testid="testId" @click.self="requestCancel">
-    <form class="modal" @submit.prevent="$emit('submit')">
+    <form class="modal" :class="{ 'modal-wide': wide }" @submit.prevent="$emit('submit')">
       <h3>{{ title }}</h3>
 
       <div v-if="baseError" class="error-banner" role="alert" :data-testid="bannerTestId">

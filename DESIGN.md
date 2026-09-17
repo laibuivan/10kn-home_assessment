@@ -13,7 +13,7 @@ tương ứng đánh dấu **TODO**, không bịa trước.
 - [Auth / phân quyền / tách Organization](#auth--phân-quyền--tách-organization) ✅ F0
 - [Giả định](#giả-định) — TODO
 - [Rủi ro production còn lại](#rủi-ro-production-còn-lại) — TODO
-- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5, F6 done)
+- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5, F6, F7 done)
 
 ---
 
@@ -149,6 +149,80 @@ eslint+vitest. 39 acceptance scenario của F5 vẫn được viết đầy đ�
 `docs/sot/F5-group-crud.md` §11 (dùng làm hợp đồng hành vi, ánh xạ trực tiếp
 vào RSpec request spec + Vitest component test thay vì Gherkin/Playwright).
 Không có file `features/f5-group-crud.feature` nào được tạo.
+
+### F7 (Policy CRUD — list/create/edit, status)
+- **AI làm**: toàn bộ vòng đời — SoT (10 OQ), 3 bản thiết kế + preview HTML,
+  plan (20 task/7 wave), implement (2 nhánh BE/FE chạy song song), gate. **User
+  ủy quyền cho AI tự review & approve toàn bộ** (SoT, cả 3 design, mọi open
+  question, plan) trong phiên làm việc này, cùng cách đã làm từ F4 — không
+  dừng lại chờ duyệt từng bước, kể cả bước implement. Khác các feature trước:
+  vai trò "người duyệt" và vai trò "agent thiết kế" là 2 lượt gọi Claude tách
+  biệt trong cùng phiên (subagent viết bản nháp → Claude chính đọc lại, tự
+  verify bằng công cụ thật thay vì chỉ đọc văn bản, sửa lỗi trước khi tự
+  approve) — nhờ vậy 2 lỗi thật ở mục dưới được bắt **trước khi** code, không
+  phải trong lúc implement hay code review sau đó.
+- **Chỗ AI (vai trò db-designer) sai, bị Claude chính (vai trò duyệt) tự phát
+  hiện và sửa trước khi approve `docs/design/F7-db.md`**: bản nháp đầu tiên
+  đặt tên cột nghiệp vụ là `type` (đúng thuật ngữ PRD) và ghi chú "an toàn vì
+  Rails chỉ kích hoạt Single Table Inheritance khi có class con kế thừa
+  `Policy`" — **sai**: `ActiveRecord::Inheritance` kích hoạt STI dựa trên **sự
+  tồn tại của cột `type`**, không phụ thuộc có subclass hay không, nên mọi
+  `Policy.find`/`organization.policies.all` sẽ raise
+  `ActiveRecord::SubclassNotFound` ngay khi có ≥1 policy với `type` thật (vd
+  `"wifi"`). Bị bắt bằng cách đọc kỹ tài liệu Rails `ActiveRecord::Inheritance`
+  trong lúc review thay vì chỉ tin lời giải thích của bản nháp — sửa bằng
+  `self.inheritance_column = "_type_disabled"` làm dòng đầu tiên của class,
+  kèm 1 RSpec regression test riêng (T3) để lỗi này không thể quay lại êm ru.
+- **Chỗ AI (vai trò api-designer) sai, bị Claude chính tự phát hiện và sửa
+  trước khi approve `docs/design/F7-api.md`**: bản nháp khẳng định request
+  `GET /api/v1/policies/:id` (route không tồn tại, SoT OQ-7) trả về "trang 404
+  mặc định của Rails (HTML)" — **sai**, và không được verify trước khi viết
+  vào tài liệu. Claude chính tự chạy `rails runner` thật trên chính app này
+  (giả lập request có header `Accept: application/json` — đúng header mọi
+  request spec/axios thật gửi) và phát hiện: ở `test`/`development` body thực
+  ra là **JSON debug đầy đủ** của `ActionDispatch::DebugExceptions` (rò rỉ tên
+  exception class + backtrace), còn ở cấu hình kiểu production là JSON sạch
+  nhưng khác shape `{"error": "Not found"}` chuẩn của app. Sửa tài liệu theo
+  đúng bằng chứng đã verify (không suy đoán), và chốt rule cho test: chỉ
+  assert status `404`, không bao giờ assert body cho nhánh này.
+- **Mâu thuẫn SoT/`UI_UX_design.md` được xử lý đúng quy trình `CLAUDE.md` §5**
+  (dừng lại, báo cáo, người có thẩm quyền quyết định — không tự chọn ngầm):
+  `UI_UX_design.md` §7.1 mô tả `type` là "select, danh sách cố định theo
+  domain", nhưng PRD không cho danh sách type cụ thể nào. Quyết định (ghi rõ
+  trong SoT §12 OQ-3 và `F7-frontend.md` §0.1): giữ `type` free-form string ở
+  DB, nhưng FE hiện field này dưới dạng **combobox** (`&lt;input list&gt;` +
+  `&lt;datalist&gt;`, gợi ý = type distinct đã có trong org, vẫn gõ được giá trị
+  mới) — hoà giải tinh thần "chọn từ danh sách" của UI_UX mà không bịa ra 1
+  enum domain-specific ngoài đề bài.
+- **Tự thiết kế (không có trong PRD, phải tự quyết định và ghi rõ)**:
+  - Combobox `type` qua `&lt;datalist&gt;` gốc HTML5 (không thư viện dropdown
+    riêng) — nguồn gợi ý lấy từ `store.policies` đã tải sẵn (không gọi thêm
+    endpoint), chấp nhận giới hạn "chỉ phủ trang/filter đang xem" vì đây chỉ
+    là gợi ý tiện lợi, không phải validate (ghi rõ trade-off ở OQ-FE-1).
+  - JSON editor cho `configuration` — textarea + nút "Format" + parse-on-blur,
+    dùng 1 hàm `parseConfiguration()` duy nhất cho cả blur/Format/submit
+    (tránh 3 bản logic lệch nhau), không tự động sửa/format khi đang lỗi.
+  - `to_unsafe_h` scoped đúng 1 field `configuration` ở strong params — lần
+    đầu dự án dùng, vì `permit(configuration: {})` chuẩn của Rails âm thầm bỏ
+    field khi giá trị sai kiểu (bug im lặng: `PATCH` với `configuration` sai
+    kiểu sẽ trả `200` giữ nguyên giá trị cũ thay vì `422`). Giới hạn chặt vào
+    đúng 1 field, không mở `to_unsafe_h` cho toàn bộ params.
+  - Thêm prop `wide?: boolean` (default `false`) vào `FormModal.vue` dùng
+    chung — JSON editor 8 dòng monospace cần rộng hơn khung 360px mặc định.
+    Thuần cộng thêm, `GroupFormModal`/`DeviceFormModal` không đổi hành vi.
+- **Không có bug nào của AI bị phát hiện trong lúc implement** (khác các
+  feature trước) — nhờ 2 lỗi thiết kế ở trên đã bị chặn từ trước khi code.
+  Một ghi chú vận hành (không phải lỗi logic): agent backend lần đầu chạy
+  `bundle exec rspec` qua `docker exec` kế thừa `RAILS_ENV=development` của
+  container (đặt trong `docker-compose.yml` cho service `api`), khiến
+  `ActionDispatch::HostAuthorization` chặn host `www.example.com` mà RSpec
+  request spec dùng mặc định — phải truyền `-e RAILS_ENV=test` tường minh.
+  Claude chính (vai trò duyệt) tự chạy lại độc lập cả 3 gate (`bin/rubocop`,
+  `bundle exec rspec` qua Docker với `RAILS_ENV=test`, `npm run lint`/
+  `test:unit`/`build`) sau khi 2 agent implement báo Done, xác nhận cùng kết
+  quả (503 RSpec example/0 failure, 70 file rubocop/0 offense, 310 Vitest
+  test/0 failure, ESLint sạch, `vue-tsc -b && vite build` sạch) trước khi coi
+  F7 là Done — không chỉ tin báo cáo tóm tắt của agent.
 
 ### F6 (Group membership tại scale — thêm/gỡ device, chịu 10.000 device, idempotent)
 - **AI làm**: toàn bộ vòng đời — SoT (8 OQ), 3 bản thiết kế + preview HTML,

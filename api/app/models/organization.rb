@@ -14,6 +14,9 @@ class Organization < ApplicationRecord
   # Organization, so there is no cascade to choose. Decide for users/devices/
   # groups in one go if an Organization-delete flow is ever added.
   has_many :groups
+  # Same reasoning again for F7 (docs/design/F7-db.md §1) — no Organization
+  # delete flow exists, so no cascade decision is due here either.
+  has_many :policies
 
   validates :name, presence: true
 end

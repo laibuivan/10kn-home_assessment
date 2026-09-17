@@ -51,10 +51,7 @@ function logout() {
         <span class="mark">DC</span>
         <span class="name">Device Console</span>
       </div>
-      <!--
-        Only Policies is still a placeholder — it becomes a link when F7
-        adds the route. Highlighting: see `isSectionActive` above.
-      -->
+      <!-- Highlighting: see `isSectionActive` above. -->
       <RouterLink
         to="/devices"
         class="nav-item"
@@ -71,8 +68,16 @@ function logout() {
       >
         <span class="ic">▣</span> Groups
       </RouterLink>
-      <span class="nav-item future"><span class="ic">▢</span> Policies</span>
-      <div class="sidebar-note">Policies hiện khi F7 thêm route</div>
+      <!-- F7 pays off the last F0/F5 nav placeholder — Policies is now a
+           real link, same pattern as Devices/Groups above. -->
+      <RouterLink
+        to="/policies"
+        class="nav-item"
+        :class="{ active: isSectionActive('/policies') }"
+        data-testid="nav-policies"
+      >
+        <span class="ic">▢</span> Policies
+      </RouterLink>
     </aside>
 
     <div class="shell-main">
