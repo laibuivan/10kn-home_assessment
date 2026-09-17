@@ -119,6 +119,13 @@ body {
 .modal p { font-size: 13.5px; color: var(--text-muted); margin: 0; }
 .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
 .modal .modal-body { display: flex; flex-direction: column; gap: 12px; }
+/* NEW at F7 (docs/design/F7-frontend.md §2.4) — opt-in wider modal for
+   PolicyFormModal's JSON editor; `.modal`'s own rule above is untouched. */
+.modal.modal-wide { max-width: 480px; }
+
+/* ---------- JSON editor (configuration field, F7) ---------- */
+.json-editor { font-family: var(--font-mono); font-size: 12.5px; }
+.field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 .toast-stack { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 30; }
 .toast { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; padding: 10px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 8px 20px rgba(15, 23, 33, 0.12); }

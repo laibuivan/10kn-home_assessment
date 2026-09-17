@@ -19,6 +19,10 @@ Rails.application.routes.draw do
           delete "devices/:device_id", to: "group_devices#destroy"
         end
       end
+      # No :show/:destroy on purpose (SoT F7 OQ-2/OQ-7) — see
+      # docs/design/F7-api.md §2.5 for what GET/DELETE :id do instead
+      # (routing 404, not a controller action).
+      resources :policies, only: [ :index, :create, :update ]
     end
   end
 end

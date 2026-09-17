@@ -59,14 +59,19 @@ Login), `F2` (Device list — pagination + platform/status filter), `F3`
 dụng" panels), `F5` (Group CRUD — list/create/edit/delete, org-scoped),
 `F6` (Group membership at scale — add/remove Device to/from a Group from
 either side, paginated up to 10k members per Group, idempotent bulk-add via
-`upsert_all`; the "Groups đang thuộc" panel on Device Detail is now live).
-Not built yet: Policies, policy assignment/resolution.
+`upsert_all`; the "Groups đang thuộc" panel on Device Detail is now live),
+`F7` (Policy CRUD — list/create/edit + active/inactive status toggle,
+org-scoped, `type` as a free-form combobox field, `configuration` as a
+validated JSON object). Not built yet: Policy assignment (to Group/Device)
+and the policy-resolution/conflict engine.
 
 `bin/rails db:seed` (run automatically by `docker compose up --build` on
 first run) creates 2 Organizations ("Acme Inc.", "Globex Corp.") each with a
 login account at `admin@<org>.example` / `Password123!`, a spread of Devices
-across every platform/status combo, a few Groups, and a handful of Group
-memberships linking them — enough to exercise pagination, filtering, the
-detail pages, and Group membership add/remove from the UI. The full 5-minute
-walkthrough this section owes the PRD will be written once Policies exist too
-(walking through "gán policy" needs that feature).
+across every platform/status combo, a few Groups, a handful of Group
+memberships linking them, and a few Policies with varied `type`/`status` —
+enough to exercise pagination, filtering, the detail pages, Group membership
+add/remove, and the Policies list/create/edit/status-toggle from the UI. The
+full 5-minute walkthrough this section owes the PRD will be written once
+Policy assignment exists too (walking through "gán policy" needs that
+feature, F8).

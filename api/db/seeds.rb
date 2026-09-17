@@ -144,3 +144,39 @@ link_devices_to_group!(organization: globex, group_name: "Sales Team",
                        identifiers: %w[GLBX-0001 GLBX-0002])
 
 puts "Seeded #{GroupMembership.count} group memberships."
+
+# ---------------------------------------------------------------------------
+# Policies (F7) — a handful per org, varied type/status, so the Policies
+# screen's search and status filter both have something visible to
+# demonstrate. Idempotent like everything above: keyed on (organization,
+# name), which is exactly the composite unique index the schema enforces.
+def upsert_policy!(organization:, name:, type:, configuration:, status: :active)
+  Policy.find_or_create_by!(organization: organization, name: name) do |policy|
+    policy.type = type
+    policy.configuration = configuration
+    policy.status = status
+  end
+end
+
+ACME_POLICIES = [
+  [ "Password Baseline", "password", { "min_length" => 12, "require_symbol" => true }, :active ],
+  [ "Corp WiFi", "wifi", { "ssid" => "Acme-Corp", "security" => "wpa2" }, :active ],
+  [ "Legacy VPN", "vpn", { "protocol" => "ikev2" }, :inactive ]
+].freeze
+
+# "Corp WiFi" deliberately appears in BOTH orgs — proves PRD's "unique in
+# Organization, not globally" for Policy.name, same way "Sales Team" does for
+# Group.name.
+GLOBEX_POLICIES = [
+  [ "Corp WiFi", "wifi", { "ssid" => "Globex-Corp", "security" => "wpa3" }, :active ],
+  [ "Screen Lock", "password", { "min_length" => 8, "auto_lock_minutes" => 5 }, :active ]
+].freeze
+
+ACME_POLICIES.each do |name, type, configuration, status|
+  upsert_policy!(organization: acme, name: name, type: type, configuration: configuration, status: status)
+end
+GLOBEX_POLICIES.each do |name, type, configuration, status|
+  upsert_policy!(organization: globex, name: name, type: type, configuration: configuration, status: status)
+end
+
+puts "Seeded #{Policy.count} policies (#{acme.policies.count} for #{acme.name}, #{globex.policies.count} for #{globex.name})."
