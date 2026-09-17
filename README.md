@@ -17,13 +17,17 @@ docker compose up --build
 - API: <http://localhost:3010> (health check: `/up`)
 - Web: <http://localhost:5173>
 - DB: `localhost:5433` (`postgres`/`postgres`)
+- Worker: no exposed port — runs `bin/jobs` (Solid Queue supervisor) against
+  the same database as `api`, started automatically by `docker compose up`
+  (F8: async "gán Policy cho Group" jobs need this running or they stay
+  `pending` forever — see `docs/design/F8-db.md` §2.1).
 
-First run builds both images and runs `rails db:prepare` automatically — no
-separate setup step. Subsequent runs reuse the build cache and the `db-data`
-volume, so `docker compose up` (no `--build`) is enough once images exist.
-Ports are non-default (3010/5433) to avoid clashing with anything else already
-running on your machine — override via a root `.env` (see `.env.example`) if
-those also collide.
+First run builds all three app images (`api`, `worker`, `web`) and runs
+`rails db:prepare` automatically — no separate setup step. Subsequent runs
+reuse the build cache and the `db-data` volume, so `docker compose up` (no
+`--build`) is enough once images exist. Ports are non-default (3010/5433) to
+avoid clashing with anything else already running on your machine — override
+via a root `.env` (see `.env.example`) if those also collide.
 
 Run the gates inside the containers, e.g.:
 

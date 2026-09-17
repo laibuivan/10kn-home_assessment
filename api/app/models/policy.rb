@@ -15,10 +15,22 @@ class Policy < ApplicationRecord
 
   belongs_to :organization
 
+  # `:restrict_with_error`, not left blank — F7 OQ-2 already decided there is
+  # no hard-delete Policy route, so this line never actually raises today.
+  # Declared anyway, same reasoning as `Organization has_many :users,
+  # dependent: :restrict_with_error` (docs/design/F0-db.md §1): guard the
+  # invariant at the model layer now, cheaply, rather than relying on "there
+  # is no button for it" and hoping nobody adds a delete route later that
+  # forgets to check for existing assignments (docs/design/F8-db.md §1d).
+  has_many :policy_assignments, dependent: :restrict_with_error
+
   NAME_TAKEN_MESSAGE = "Tên policy này đã tồn tại trong tổ chức của bạn.".freeze
   NAME_BLANK_MESSAGE = "Tên policy không được để trống".freeze
   TYPE_BLANK_MESSAGE = "Loại policy không được để trống".freeze
   CONFIGURATION_INVALID_MESSAGE = "Cấu hình phải là một object JSON hợp lệ.".freeze
+  # SoT F8 A5/A6/A26 — same message for both the Group and Device assignment
+  # paths (docs/design/F8-api.md §3).
+  INACTIVE_ASSIGNMENT_MESSAGE = "Chỉ gán được Policy đang active.".freeze
 
   enum :status, { active: 0, inactive: 1 }
 

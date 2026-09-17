@@ -160,4 +160,71 @@ RSpec.describe Group, type: :model do
       expect(org.groups).to contain_exactly(group)
     end
   end
+
+  # F8 — docs/design/F8-db.md §1c: `before_destroy :fail_pending_policy_assignment_jobs`
+  # MUST run before `dependent: :nullify` sets group_id = NULL, or the job
+  # can no longer be found through the association and A10/A19 silently do
+  # not hold. This is exactly the trap the plan's Rủi ro #4 calls out.
+  describe "destroying a Group with a pending/running policy_assignment_job (SoT F8 A10, A19)" do
+    it "flips a pending job to failed, nullifies its group_id, and sets the canonical error message" do
+      org = create(:organization)
+      group = create(:group, organization: org)
+      policy = create(:policy, organization: org)
+      job = create(:policy_assignment_job, :pending, organization: org, policy: policy, group: group)
+
+      group.destroy!
+
+      job.reload
+      expect(job.status).to eq("failed")
+      expect(job.group_id).to be_nil
+      expect(job.error_message).to eq(PolicyAssignmentJob::GROUP_DELETED_MESSAGE)
+    end
+
+    it "flips a running job to failed the same way" do
+      org = create(:organization)
+      group = create(:group, organization: org)
+      policy = create(:policy, organization: org)
+      job = create(:policy_assignment_job, :running, organization: org, policy: policy, group: group)
+
+      group.destroy!
+
+      expect(job.reload.status).to eq("failed")
+      expect(job.reload.group_id).to be_nil
+    end
+
+    it "leaves an already-done job's status untouched, but still nullifies its group_id" do
+      org = create(:organization)
+      group = create(:group, organization: org)
+      policy = create(:policy, organization: org)
+      job = create(:policy_assignment_job, :done, organization: org, policy: policy, group: group)
+
+      group.destroy!
+
+      expect(job.reload.status).to eq("done")
+      expect(job.reload.group_id).to be_nil
+    end
+
+    it "deletes every policy_assignment tied to the group, but leaves the Policy and Device untouched (S17, A18)" do
+      org = create(:organization)
+      group = create(:group, organization: org)
+      device = create(:device, organization: org)
+      policy = create(:policy, organization: org)
+      group_assignment = create(:policy_assignment, :for_group, organization: org, policy: policy, group: group)
+      device_assignment = create(:policy_assignment, :for_device, organization: org, policy: policy, device: device)
+
+      group.destroy!
+
+      expect(PolicyAssignment.exists?(group_assignment.id)).to be(false)
+      expect(PolicyAssignment.exists?(device_assignment.id)).to be(true)
+      expect(Policy.exists?(policy.id)).to be(true)
+      expect(Device.exists?(device.id)).to be(true)
+    end
+
+    it "still destroys cleanly when the group has no policy_assignment_job at all (regression)" do
+      group = create(:group)
+
+      expect { group.destroy! }.not_to raise_error
+      expect(Group.exists?(group.id)).to be(false)
+    end
+  end
 end

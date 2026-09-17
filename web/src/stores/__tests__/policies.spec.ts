@@ -17,6 +17,7 @@ function policy(overrides: Partial<Policy> = {}): Policy {
     type: 'wifi',
     configuration: { ssid: 'corp' },
     status: 'active',
+    assignments_count: 0,
     created_at: '2026-09-17T08:00:00.000Z',
     updated_at: '2026-09-17T08:00:00.000Z',
     ...overrides,

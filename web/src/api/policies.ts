@@ -8,12 +8,9 @@ import type {
 } from '../types/policy'
 
 /**
- * The `/api/v1/policies` endpoints — docs/design/F7-api.md §1. Exactly 3
- * endpoints exist (`index`/`create`/`update`) — there is no `show` or
- * `destroy` route (SoT OQ-2/OQ-7), so there is deliberately no
- * `fetchPolicy(id)`/`deletePolicy(id)` here: the edit form prefills from the
- * row already in the store, and the toggle-status action reads `row.status`
- * directly.
+ * The `/api/v1/policies` endpoints — docs/design/F7-api.md §1 plus the
+ * `show` action F8 reopens (F8-api.md §1, F7 OQ-7). There is still no
+ * `destroy` route (SoT OQ-2) — Policy has no delete flow.
  *
  * Goes through the shared `apiClient` (Bearer token + the global 401 ->
  * /login redirect live there); no new axios instance.
@@ -22,6 +19,16 @@ import type {
 /** GET /api/v1/policies — axios drops `undefined` params, so an absent `q`/`status` simply means "all". */
 export async function fetchPolicyList(params: PolicyQueryParams): Promise<PolicyListResponse> {
   const response = await apiClient.get<PolicyListResponse>('/api/v1/policies', { params })
+  return response.data
+}
+
+/**
+ * GET /api/v1/policies/:id — new at F8 (F7 OQ-7). Not routed through Pinia:
+ * `PolicyDetailView` fetches straight into a local `ref`, the same call
+ * `GroupDetailView` makes for `fetchGroup` (1 record needs no global store).
+ */
+export async function fetchPolicy(id: number | string): Promise<PolicyResponse> {
+  const response = await apiClient.get<PolicyResponse>(`/api/v1/policies/${id}`)
   return response.data
 }
 

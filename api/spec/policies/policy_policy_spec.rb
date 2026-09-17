@@ -24,17 +24,35 @@ RSpec.describe PolicyPolicy, type: :policy do
     end
   end
 
-  # SoT OQ-2/OQ-7: F7 has no show/destroy action. ApplicationPolicy's
-  # default-deny keeps protecting these if a route is ever accidentally
-  # added without updating this policy.
+  # F8 OQ-7 (F7 punted this) — GET /policies/:id, plus reused for the two new
+  # read actions (device_assignments, group_assignments).
   describe "#show?" do
-    it "is not explicitly granted, defaulting to deny" do
+    it "allows any active user of an organization to read one of its policies (no in-org roles)" do
       policy = create(:policy, organization: organization)
 
-      expect(described_class.new(user, policy).show?).to be(false)
+      expect(described_class.new(user, policy).show?).to be(true)
     end
   end
 
+  describe "#assign_device?" do
+    it "allows any active user of an organization to assign a device directly to a policy" do
+      policy = create(:policy, organization: organization)
+
+      expect(described_class.new(user, policy).assign_device?).to be(true)
+    end
+  end
+
+  describe "#unassign_device?" do
+    it "allows any active user of an organization to unassign a device from a policy" do
+      policy = create(:policy, organization: organization)
+
+      expect(described_class.new(user, policy).unassign_device?).to be(true)
+    end
+  end
+
+  # SoT OQ-2: F7 has no destroy action. ApplicationPolicy's default-deny
+  # keeps protecting this if a route is ever accidentally added without
+  # updating this policy.
   describe "#destroy?" do
     it "is not explicitly granted, defaulting to deny" do
       policy = create(:policy, organization: organization)

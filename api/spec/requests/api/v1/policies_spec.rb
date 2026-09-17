@@ -56,18 +56,18 @@ RSpec.describe "GET /api/v1/policies", type: :request do
       )
     end
 
-    it "serializes exactly the seven fields the list screen needs" do
+    it "serializes exactly the eight fields the list screen needs (F8 adds assignments_count)" do
       policy = create(:policy, organization: organization, name: "Password Baseline", type: "password",
                                 configuration: { "min_length" => 12 }, status: :active)
 
       get_policies
 
       expect(body["policies"].first.keys).to contain_exactly(
-        "id", "name", "type", "configuration", "status", "created_at", "updated_at"
+        "id", "name", "type", "configuration", "status", "assignments_count", "created_at", "updated_at"
       )
       expect(body["policies"].first).to include(
         "id" => policy.id, "name" => "Password Baseline", "type" => "password",
-        "configuration" => { "min_length" => 12 }, "status" => "active"
+        "configuration" => { "min_length" => 12 }, "status" => "active", "assignments_count" => 0
       )
     end
 
@@ -79,12 +79,30 @@ RSpec.describe "GET /api/v1/policies", type: :request do
       expect(body["policies"].first).not_to have_key("organization_id")
     end
 
-    it "never exposes assignments_count (SoT OQ-6, S31 — no policy_assignments table at F7)" do
+    it "includes assignments_count (F8 OQ-6 carry-over) as 0 when there is no policy_assignment (S24/A32)" do
       create(:policy, organization: organization)
 
       get_policies
 
-      expect(body["policies"].first).not_to have_key("assignments_count")
+      expect(body["policies"].first["assignments_count"]).to eq(0)
+    end
+
+    it "counts group + direct-device assignments together, without duplicating (S23/A23)" do
+      policy = create(:policy, organization: organization)
+      create(:policy_assignment, :for_group, organization: organization, policy: policy)
+      create(:policy_assignment, :for_device, organization: organization, policy: policy)
+
+      get_policies
+
+      expect(body["policies"].first["assignments_count"]).to eq(2)
+    end
+
+    it "computes assignments_count with one grouped query, not one COUNT per row (N+1 guard)" do
+      create_list(:policy, 3, organization: organization)
+
+      expect(PolicyAssignment).to receive(:where).once.and_call_original
+
+      get_policies
     end
 
     it "sorts by created_at DESC then id DESC, so the newest policy is first" do
@@ -360,7 +378,7 @@ RSpec.describe "GET /api/v1/policies", type: :request do
   end
 end
 
-RSpec.describe "GET /api/v1/policies/:id — no such route (SoT OQ-7, docs/design/F7-api.md §2.5)", type: :request do
+RSpec.describe "GET /api/v1/policies/:id", type: :request do
   let(:organization) { create(:organization, name: "Acme Inc.") }
   let(:user) { create(:user, organization: organization) }
   let(:other_organization) { create(:organization, name: "Globex Corp.") }
@@ -369,37 +387,78 @@ RSpec.describe "GET /api/v1/policies/:id — no such route (SoT OQ-7, docs/desig
     JsonWebToken.encode(user_id: a_user.id, organization_id: a_user.organization_id)
   end
 
-  # docs/design/F7-api.md §2.5: there is intentionally no `show` route, so
-  # this request never reaches a controller — it hits
-  # ActionController::RoutingError at the routing layer, before
-  # Authenticatable/Pundit/ApplicationController's rescue_from ever run. The
-  # body is not the app's stable {"error": "Not found"} envelope (it differs
-  # between test/dev — leaking the exception class + backtrace — and
-  # production), so these specs assert status ONLY, per the plan's explicit
-  # instruction not to assert response.parsed_body here.
   def get_policy(id, token: token_for(user))
     headers = token ? { "Authorization" => "Bearer #{token}" } : {}
     get "/api/v1/policies/#{id}", headers: headers
   end
 
-  it "returns 404 for a policy belonging to another organization (S2)" do
-    foreign = create(:policy, organization: other_organization)
-
-    get_policy(foreign.id)
-
-    expect(response).to have_http_status(:not_found)
+  def body
+    response.parsed_body
   end
 
-  it "returns 404 for an id that does not exist (S4)" do
-    get_policy(999_999_999)
+  describe "authentication" do
+    it "rejects a request with no Authorization header" do
+      policy = create(:policy, organization: organization)
 
-    expect(response).to have_http_status(:not_found)
+      get_policy(policy.id, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
   end
 
-  it "returns 404, not a 500, for a malformed id (S5)" do
-    get_policy("abc")
+  describe "reading successfully (F8 OQ-7, S25/S27)" do
+    it "returns exactly the eight serialized fields, including assignments_count" do
+      policy = create(:policy, organization: organization, name: "Password Baseline", type: "password",
+                                configuration: { "min_length" => 12 }, status: :active)
 
-    expect(response).to have_http_status(:not_found)
+      get_policy(policy.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(body["policy"].keys).to contain_exactly(
+        "id", "name", "type", "configuration", "status", "assignments_count", "created_at", "updated_at"
+      )
+      expect(body["policy"]).to include("name" => "Password Baseline", "assignments_count" => 0)
+    end
+
+    it "reports assignments_count for a single policy via one COUNT, not the list's grouped query (S23)" do
+      policy = create(:policy, organization: organization)
+      create(:policy_assignment, :for_group, organization: organization, policy: policy)
+
+      get_policy(policy.id)
+
+      expect(body["policy"]["assignments_count"]).to eq(1)
+    end
+
+    it "returns an empty-looking assignments_count of 0 for a brand-new policy (S27)" do
+      policy = create(:policy, organization: organization)
+
+      get_policy(policy.id)
+
+      expect(body["policy"]["assignments_count"]).to eq(0)
+    end
+  end
+
+  describe "404s, never 403 (S26, CLAUDE.md §4)" do
+    it "returns 404 for a policy belonging to another organization" do
+      foreign = create(:policy, organization: other_organization)
+
+      get_policy(foreign.id)
+
+      expect(response).to have_http_status(:not_found)
+      expect(body["error"]).to eq("Not found")
+    end
+
+    it "returns 404 for an id that does not exist" do
+      get_policy(999_999_999)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 404, not a 500, for a malformed id (A27)" do
+      get_policy("abc")
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 end
 
@@ -440,15 +499,16 @@ RSpec.describe "POST /api/v1/policies", type: :request do
   end
 
   describe "creating successfully" do
-    it "returns 201 with exactly the seven serialized fields" do
+    it "returns 201 with exactly the eight serialized fields (F8 adds assignments_count)" do
       post_policy({ name: "Password Baseline", type: "password", configuration: { min_length: 12 } })
 
       expect(response).to have_http_status(:created)
       expect(body["policy"].keys).to contain_exactly(
-        "id", "name", "type", "configuration", "status", "created_at", "updated_at"
+        "id", "name", "type", "configuration", "status", "assignments_count", "created_at", "updated_at"
       )
       expect(body["policy"]).to include(
-        "name" => "Password Baseline", "type" => "password", "configuration" => { "min_length" => 12 }
+        "name" => "Password Baseline", "type" => "password", "configuration" => { "min_length" => 12 },
+        "assignments_count" => 0
       )
     end
 
@@ -930,17 +990,15 @@ RSpec.describe "PATCH /api/v1/policies/:id", type: :request do
 end
 
 RSpec.describe "routing for /api/v1/policies", type: :routing do
-  it "routes the three endpoints F7 owns" do
+  it "routes the four endpoints F7+F8 own" do
     expect(get: "/api/v1/policies").to be_routable
     expect(post: "/api/v1/policies").to be_routable
+    expect(get: "/api/v1/policies/1").to be_routable
     expect(patch: "/api/v1/policies/1").to be_routable
   end
 
-  # SoT OQ-2/OQ-7 — deliberately no show/destroy route in F7.
-  it "does not route GET /api/v1/policies/:id to any controller action" do
-    expect(get: "/api/v1/policies/1").not_to be_routable
-  end
-
+  # SoT OQ-2 — F8 opened :show (F7 OQ-7) but still deliberately no :destroy
+  # route (no hard-delete Policy flow anywhere in F8's scope either).
   it "does not route DELETE /api/v1/policies/:id to any controller action" do
     expect(delete: "/api/v1/policies/1").not_to be_routable
   end

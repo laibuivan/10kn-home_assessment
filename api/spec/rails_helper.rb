@@ -44,6 +44,11 @@ RSpec.configure do |config|
   # (F4) to assert exact last_seen_at/updated_at values without a real clock
   # race.
   config.include ActiveSupport::Testing::TimeHelpers
+  # `perform_enqueued_jobs`/`assert_enqueued_with` — F8 uses the `:test`
+  # queue adapter (config/environments/test.rb), so async job specs run the
+  # job synchronously in-process instead of waiting on a real Solid Queue
+  # worker (docs/design/F8-db.md §2.1 mục 4).
+  config.include ActiveJob::TestHelper
 
   # If you're not using ActiveRecord, or you'd prefer not to run each of your
   # examples within a transaction, remove the following line or assign false

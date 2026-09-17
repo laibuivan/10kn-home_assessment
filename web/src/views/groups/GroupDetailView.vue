@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { LocationQueryRaw } from 'vue-router'
 import AppShell from '../../components/AppShell.vue'
@@ -12,8 +12,11 @@ import ErrorState from '../../components/ErrorState.vue'
 import GroupFormModal from '../../components/GroupFormModal.vue'
 import ConfirmModal from '../../components/ConfirmModal.vue'
 import GroupMemberAddModal from '../../components/GroupMemberAddModal.vue'
+import GroupPolicyAssignModal from '../../components/GroupPolicyAssignModal.vue'
 import { useGroupsStore } from '../../stores/groups'
 import { useGroupMembershipsStore } from '../../stores/group-memberships'
+import { usePolicyAssignmentsStore } from '../../stores/policyAssignments'
+import { useJobsStore } from '../../stores/jobs'
 import { useToastStore } from '../../stores/toast'
 import { fetchGroup } from '../../api/groups'
 import { extractErrorMessage, isNotFoundError } from '../../utils/apiError'
@@ -26,23 +29,29 @@ import {
   type Device,
 } from '../../types/device'
 import type { Group, GroupDevicesQueryParams } from '../../types/group'
+import type { PolicySummary } from '../../types/policyAssignment'
+import type { PolicyAssignmentJob } from '../../types/policyAssignmentJob'
 import type { DataTableColumn, FilterDefinition } from '../../types/ui'
 
 /**
- * Group Detail — docs/design/F6-frontend.md §2.1/§2.2.
+ * Group Detail — docs/design/F6-frontend.md §2.1/§2.2, tab Policies dựng
+ * thật ở F8 (docs/design/F8-frontend.md §2.4).
  *
- * Two independent data sources on one screen: the header (one group, fetched
+ * Independent data sources on one screen: the header (one group, fetched
  * straight into a local `ref` — a single record needs no global store, same
- * call F4 made for `DeviceDetailView`) and the "Thành viên" tab (a paginated
- * list, in `stores/group-memberships.ts`). They load in parallel and fail
- * independently: a broken tab must not hide the group's name, and a broken
- * header must not hide its members (A28).
+ * call F4 made for `DeviceDetailView`), the "Thành viên" tab
+ * (`stores/group-memberships.ts`) and the "Policies" tab
+ * (`stores/policyAssignments.ts`'s `groupPolicies` slice). They load
+ * independently and fail independently: a broken tab must not hide the
+ * group's name, and a broken header must not hide either tab (A28).
  */
 
 const route = useRoute()
 const router = useRouter()
 const groupsStore = useGroupsStore()
 const membershipsStore = useGroupMembershipsStore()
+const policyAssignmentsStore = usePolicyAssignmentsStore()
+const jobsStore = useJobsStore()
 const toastStore = useToastStore()
 
 const HEADER_LOAD_ERROR = 'Không tải được thông tin group.'
@@ -52,6 +61,8 @@ const DELETE_FAILED_MESSAGE = 'Không xóa được group, vui lòng thử lại
 const REMOVE_SUCCESS_MESSAGE = 'Đã gỡ thiết bị khỏi group'
 const REMOVE_FAILED_MESSAGE = 'Không gỡ được thiết bị, vui lòng thử lại.'
 const MEMBERSHIP_MISSING_MESSAGE = 'Thiết bị không còn là thành viên của group này.'
+const REMOVE_POLICY_SUCCESS_MESSAGE = 'Đã gỡ policy'
+const REMOVE_POLICY_FAILED_MESSAGE = 'Không gỡ được policy, vui lòng thử lại.'
 
 // ---------- Header ----------
 const group = ref<Group | null>(null)
@@ -304,6 +315,100 @@ function onMembersAdded(payload: { addedCount: number; devicesCount: number }) {
   loadHeader()
   if (wasOnFirstPage) loadMembers()
 }
+
+// ---------- Policies tab (F8) ----------
+/** Local state, not synced to the URL (OQ-FE-1, F8-frontend.md §5). */
+const activeTab = ref<'members' | 'policies'>('members')
+const groupPoliciesLoadedOnce = ref(false)
+
+function loadGroupPolicies(): Promise<void> {
+  return policyAssignmentsStore.fetchGroupPolicies(groupId.value, { page: 1 })
+}
+
+function selectTab(tab: 'members' | 'policies') {
+  activeTab.value = tab
+  if (tab === 'policies' && !groupPoliciesLoadedOnce.value) {
+    groupPoliciesLoadedOnce.value = true
+    loadGroupPolicies()
+  }
+}
+
+const policyColumns: DataTableColumn<PolicySummary>[] = [
+  { key: 'name', label: 'Name', value: (row) => row.name },
+  { key: 'type', label: 'Type', value: (row) => row.type },
+  { key: 'status', label: 'Status' },
+  { key: 'actions', label: '', cellClass: 'actions-cell' },
+]
+
+const showPoliciesEmpty = computed(
+  () =>
+    !policyAssignmentsStore.groupPolicies.loading &&
+    policyAssignmentsStore.groupPolicies.meta !== null &&
+    policyAssignmentsStore.groupPolicies.meta.total_count === 0,
+)
+
+const assignedPolicyIds = computed(() => policyAssignmentsStore.groupPolicies.items.map((p) => p.id))
+
+// A17/§6.3 point 6 — re-attach runs on mount regardless of which tab is
+// active, so a banner reappears even while the user is looking at
+// "Thành viên".
+onMounted(() => {
+  jobsStore.reattachForGroup(groupId.value)
+})
+
+// ---------- Policies: assign ----------
+const showPolicyAssignModal = ref(false)
+
+function onPolicyAssigned(job: PolicyAssignmentJob) {
+  showPolicyAssignModal.value = false
+  jobsStore.track(job)
+  // No toast (§2.5.1/§4): 202 means the assignment isn't real yet — the job
+  // banner (global, mounted in AppShell) is the feedback for this step.
+}
+
+// ---------- Policies: remove ----------
+const confirmRemovePolicy = ref<PolicySummary | null>(null)
+
+const removePolicyMessage = computed(() =>
+  confirmRemovePolicy.value && group.value
+    ? `Gỡ policy "${confirmRemovePolicy.value.name}" khỏi group "${group.value.name}"? Thiết bị trong ` +
+      `group sẽ không còn nhận policy này qua group (không ảnh hưởng policy gán trực tiếp cho từng device).`
+    : '',
+)
+
+async function handleRemovePolicy() {
+  const target = confirmRemovePolicy.value
+  if (!target) return
+  try {
+    await policyAssignmentsStore.unassignPolicyFromGroup(groupId.value, target.id)
+    confirmRemovePolicy.value = null
+    toastStore.push(REMOVE_POLICY_SUCCESS_MESSAGE)
+    await loadGroupPolicies()
+  } catch (error) {
+    confirmRemovePolicy.value = null
+    toastStore.push(extractErrorMessage(error, REMOVE_POLICY_FAILED_MESSAGE), 'error')
+  }
+}
+
+/**
+ * Refetch when a job for THIS group just finished — Phương án A only writes
+ * the real `policy_assignments` row while the job is `running`, so the tab
+ * is not accurate right after the `202` (F8-frontend.md §2.4).
+ */
+const seenDoneJobIds = new Set<number>()
+watch(
+  () => jobsStore.jobs,
+  (jobs) => {
+    const justDone = jobs.filter(
+      (j) => j.status === 'done' && j.group?.id === groupId.value && !seenDoneJobIds.has(j.id),
+    )
+    justDone.forEach((j) => seenDoneJobIds.add(j.id))
+    if (justDone.length === 0) return
+    if (activeTab.value === 'policies') loadGroupPolicies()
+    else groupPoliciesLoadedOnce.value = false // not active -> force a reload next time the tab is opened
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -366,133 +471,206 @@ function onMembersAdded(payload: { addedCount: number; devicesCount: number }) {
         </div>
       </div>
 
-      <!-- Both are labels, not buttons: only one tab exists at F6, and
-           "Policies" arrives with F7 (OQ-FE-2). -->
+      <!-- F8 — both are now real <button>s, and "Policies" has real content (§2.4). -->
       <div class="tabs">
-        <span class="tab-item active" data-testid="group-detail-members-tab">
+        <button
+          type="button"
+          class="tab-item"
+          :class="{ active: activeTab === 'members' }"
+          data-testid="group-detail-members-tab"
+          @click="selectTab('members')"
+        >
           Thành viên ({{ group ? group.devices_count : '…' }})
-        </span>
-        <span class="tab-item future" title="Có ở F7">Policies</span>
-      </div>
-
-      <FilterBar
-        :filters="filters"
-        :model-value="filterValues"
-        @change="onFilterChange"
-        @clear="onClearFilters"
-      />
-
-      <div class="list-head" style="margin-bottom: 10px">
-        <span></span>
-        <!-- Hidden while A19's empty state shows its own CTA, so there is
-             never a second element with this testid. -->
+        </button>
         <button
-          v-if="!showEmptyStateNoMembers"
           type="button"
-          class="btn btn-primary"
-          data-testid="add-devices-button"
-          @click="showAddModal = true"
+          class="tab-item"
+          :class="{ active: activeTab === 'policies' }"
+          data-testid="group-detail-policies-tab"
+          @click="selectTab('policies')"
         >
-          + Thêm device vào group
+          Policies
         </button>
       </div>
 
-      <ErrorState
-        v-if="membershipsStore.error"
-        :message="membershipsStore.error"
-        @retry="loadMembers"
-      />
+      <!-- Tab: Thành viên -->
+      <template v-if="activeTab === 'members'">
+        <FilterBar
+          :filters="filters"
+          :model-value="filterValues"
+          @change="onFilterChange"
+          @clear="onClearFilters"
+        />
 
-      <EmptyState
-        v-else-if="showEmptyState && hasActiveFilter"
-        title="Không tìm thấy thiết bị"
-        description="Thử đổi hoặc xóa bộ lọc đang áp dụng."
-      >
-        <button
-          type="button"
-          class="btn btn-secondary"
-          data-testid="empty-state-clear-button"
-          @click="onClearFilters"
-        >
-          Xóa lọc
-        </button>
-      </EmptyState>
+        <div class="list-head" style="margin-bottom: 10px">
+          <span></span>
+          <!-- Hidden while A19's empty state shows its own CTA, so there is
+               never a second element with this testid. -->
+          <button
+            v-if="!showEmptyStateNoMembers"
+            type="button"
+            class="btn btn-primary"
+            data-testid="add-devices-button"
+            @click="showAddModal = true"
+          >
+            + Thêm device vào group
+          </button>
+        </div>
 
-      <EmptyState
-        v-else-if="showEmptyState"
-        title="Group chưa có thiết bị nào"
-        description="Thêm device vào group để bắt đầu quản lý theo nhóm."
-      >
-        <button
-          type="button"
-          class="btn btn-primary"
-          data-testid="add-devices-button"
-          @click="showAddModal = true"
-        >
-          + Thêm device vào group
-        </button>
-      </EmptyState>
+        <ErrorState
+          v-if="membershipsStore.error"
+          :message="membershipsStore.error"
+          @retry="loadMembers"
+        />
 
-      <template v-else>
-        <DataTable
-          :columns="columns"
-          :rows="membershipsStore.members"
-          :row-key="(row: Device) => row.id"
-          :loading="membershipsStore.loading"
-          :on-row-click="viewDevice"
-          test-id="group-members-table"
-          row-test-id="group-member-row"
+        <EmptyState
+          v-else-if="showEmptyState && hasActiveFilter"
+          title="Không tìm thấy thiết bị"
+          description="Thử đổi hoặc xóa bộ lọc đang áp dụng."
         >
-          <template #cell-status="{ row }">
-            <StatusBadge :status="(row as Device).status" />
-          </template>
-          <template #cell-actions="{ row }">
-            <span @click.stop>
-              <span v-if="confirmRemoveId === (row as Device).id" class="inline-confirm">
-                <span>Gỡ khỏi group?</span>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-testid="empty-state-clear-button"
+            @click="onClearFilters"
+          >
+            Xóa lọc
+          </button>
+        </EmptyState>
+
+        <EmptyState
+          v-else-if="showEmptyState"
+          title="Group chưa có thiết bị nào"
+          description="Thêm device vào group để bắt đầu quản lý theo nhóm."
+        >
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-testid="add-devices-button"
+            @click="showAddModal = true"
+          >
+            + Thêm device vào group
+          </button>
+        </EmptyState>
+
+        <template v-else>
+          <DataTable
+            :columns="columns"
+            :rows="membershipsStore.members"
+            :row-key="(row: Device) => row.id"
+            :loading="membershipsStore.loading"
+            :on-row-click="viewDevice"
+            test-id="group-members-table"
+            row-test-id="group-member-row"
+          >
+            <template #cell-status="{ row }">
+              <StatusBadge :status="(row as Device).status" />
+            </template>
+            <template #cell-actions="{ row }">
+              <span @click.stop>
+                <span v-if="confirmRemoveId === (row as Device).id" class="inline-confirm">
+                  <span>Gỡ khỏi group?</span>
+                  <button
+                    type="button"
+                    class="btn btn-danger btn-sm"
+                    data-testid="group-member-remove-confirm"
+                    :disabled="removingId === (row as Device).id"
+                    :data-busy="removingId === (row as Device).id"
+                    @click="confirmRemove(row as Device)"
+                  >
+                    <span class="btn-label">Có, gỡ</span>
+                    <span class="spinner" aria-hidden="true"></span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    data-testid="group-member-remove-cancel"
+                    :disabled="removingId === (row as Device).id"
+                    @click="cancelRemove"
+                  >
+                    Hủy
+                  </button>
+                </span>
                 <button
-                  type="button"
-                  class="btn btn-danger btn-sm"
-                  data-testid="group-member-remove-confirm"
-                  :disabled="removingId === (row as Device).id"
-                  :data-busy="removingId === (row as Device).id"
-                  @click="confirmRemove(row as Device)"
-                >
-                  <span class="btn-label">Có, gỡ</span>
-                  <span class="spinner" aria-hidden="true"></span>
-                </button>
-                <button
+                  v-else
                   type="button"
                   class="btn btn-secondary btn-sm"
-                  data-testid="group-member-remove-cancel"
-                  :disabled="removingId === (row as Device).id"
-                  @click="cancelRemove"
+                  data-testid="group-member-remove-button"
+                  @click="askRemove(row as Device)"
                 >
-                  Hủy
+                  Gỡ khỏi group
                 </button>
               </span>
-              <button
-                v-else
-                type="button"
-                class="btn btn-secondary btn-sm"
-                data-testid="group-member-remove-button"
-                @click="askRemove(row as Device)"
-              >
-                Gỡ khỏi group
-              </button>
-            </span>
+            </template>
+          </DataTable>
+
+          <PaginationBar
+            v-if="membershipsStore.meta"
+            :current-page="membershipsStore.meta.current_page"
+            :per-page="membershipsStore.meta.per_page"
+            :total-count="membershipsStore.meta.total_count"
+            :total-pages="membershipsStore.meta.total_pages"
+            :loading="membershipsStore.loading"
+            @change="onPageChange"
+          />
+        </template>
+      </template>
+
+      <!-- Tab: Policies (F8) -->
+      <template v-else>
+        <div class="list-head" style="margin-bottom: 10px">
+          <span></span>
+          <button
+            v-if="!showPoliciesEmpty"
+            type="button"
+            class="btn btn-primary"
+            data-testid="group-policy-assign-button"
+            @click="showPolicyAssignModal = true"
+          >
+            + Gán policy
+          </button>
+        </div>
+
+        <ErrorState
+          v-if="policyAssignmentsStore.groupPolicies.error"
+          :message="policyAssignmentsStore.groupPolicies.error"
+          @retry="loadGroupPolicies"
+        />
+
+        <EmptyState v-else-if="showPoliciesEmpty" title="Group chưa được gán Policy nào.">
+          <button
+            type="button"
+            class="btn btn-primary"
+            data-testid="group-policy-assign-button"
+            @click="showPolicyAssignModal = true"
+          >
+            + Gán policy
+          </button>
+        </EmptyState>
+
+        <DataTable
+          v-else
+          :columns="policyColumns"
+          :rows="policyAssignmentsStore.groupPolicies.items"
+          :row-key="(row: PolicySummary) => row.id"
+          :loading="policyAssignmentsStore.groupPolicies.loading"
+          test-id="group-policies-table"
+          row-test-id="group-policy-row"
+        >
+          <template #cell-status="{ row }">
+            <StatusBadge :status="(row as PolicySummary).status" />
+          </template>
+          <template #cell-actions="{ row }">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              data-testid="group-policy-remove-button"
+              @click="confirmRemovePolicy = row as PolicySummary"
+            >
+              Gỡ
+            </button>
           </template>
         </DataTable>
-
-        <PaginationBar
-          v-if="membershipsStore.meta"
-          :current-page="membershipsStore.meta.current_page"
-          :per-page="membershipsStore.meta.per_page"
-          :total-count="membershipsStore.meta.total_count"
-          :total-pages="membershipsStore.meta.total_pages"
-          :loading="membershipsStore.loading"
-          @change="onPageChange"
-        />
       </template>
     </template>
   </AppShell>
@@ -524,5 +702,25 @@ function onMembersAdded(payload: { addedCount: number; devicesCount: number }) {
     :group-id="groupId"
     @added="onMembersAdded"
     @cancel="showAddModal = false"
+  />
+
+  <GroupPolicyAssignModal
+    v-if="showPolicyAssignModal"
+    :group-id="groupId"
+    :assigned-policy-ids="assignedPolicyIds"
+    @assigned="onPolicyAssigned"
+    @cancel="showPolicyAssignModal = false"
+  />
+
+  <ConfirmModal
+    v-if="confirmRemovePolicy"
+    title="Gỡ policy khỏi group?"
+    :message="removePolicyMessage"
+    confirm-label="Gỡ"
+    :on-confirm="handleRemovePolicy"
+    test-id="confirm-modal"
+    confirm-test-id="confirm-modal-confirm"
+    cancel-test-id="confirm-modal-cancel"
+    @cancel="confirmRemovePolicy = null"
   />
 </template>

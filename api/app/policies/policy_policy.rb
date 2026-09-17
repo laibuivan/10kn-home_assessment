@@ -22,6 +22,23 @@ class PolicyPolicy < ApplicationPolicy
     true
   end
 
+  # F8 — GET /policies/:id (F7 OQ-7 mở lại), and reused for the two new read
+  # actions (list device assigned directly, list group assigned) — same
+  # reasoning as GroupPolicy#show? (docs/design/F8-api.md §1).
+  def show?
+    true
+  end
+
+  # POST/DELETE /policies/:id/device_assignments(/:device_id) — assigning/
+  # unassigning a Device directly to this Policy.
+  def assign_device?
+    true
+  end
+
+  def unassign_device?
+    true
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       # Through the association, never Policy.where(...) — same rule as

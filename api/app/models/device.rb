@@ -6,6 +6,9 @@ class Device < ApplicationRecord
   # owes this association an explicit `dependent:` in the same change.
   has_many :group_memberships
   has_many :groups, through: :group_memberships
+  # No `dependent:` — same reasoning as :group_memberships above, there is no
+  # delete-a-device flow (docs/design/F8-db.md §1).
+  has_many :policy_assignments
 
   # Integer-backed native enums, same style as User#status (F0) — see
   # docs/design/F2-db.md §1b for why no parallel DB check constraint.
@@ -21,6 +24,12 @@ class Device < ApplicationRecord
   # them — Api::V1::GroupDevicesController enforces the same invariant with
   # this message (CLAUDE.md §4 "retired bất biến", SoT F6 A8/A9/A27).
   RETIRED_GROUP_MESSAGE = "Thiết bị đã retired, không thể thay đổi group".freeze
+  # F8 — same "retired bất biến" invariant, but for direct Policy assignment
+  # rather than group membership (docs/design/F8-api.md §3). A distinct
+  # constant, not a reuse of RETIRED_GROUP_MESSAGE — different action, same
+  # "family" of invariant, same pattern F6 already established of one
+  # message per action rather than one generic message for all of them.
+  RETIRED_POLICY_MESSAGE = "Thiết bị đã retired, không thể gán policy trực tiếp.".freeze
 
   # Declared first — SoT §4 bước 3: "kiểm tra retired trước tiên", short-
   # circuits the entire remaining validate chain via throw(:abort) so a

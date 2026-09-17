@@ -6,9 +6,19 @@ import GroupDetailView from '../GroupDetailView.vue'
 import { fetchGroup, updateGroup, deleteGroup } from '../../../api/groups'
 import { fetchGroupDevices, addGroupDevices, removeGroupDevice } from '../../../api/group-memberships'
 import { fetchDeviceList } from '../../../api/devices'
+import { fetchPolicyList } from '../../../api/policies'
+import {
+  fetchGroupPolicyAssignments,
+  createGroupPolicyAssignment,
+  deleteGroupPolicyAssignment,
+  fetchGroupPolicyAssignmentJobs,
+  fetchPolicyAssignmentJob,
+} from '../../../api/policyAssignments'
 import { useGroupsStore } from '../../../stores/groups'
 import type { Group } from '../../../types/group'
 import type { Device, DeviceListResponse } from '../../../types/device'
+import type { PolicySummary } from '../../../types/policyAssignment'
+import type { PolicyAssignmentJob } from '../../../types/policyAssignmentJob'
 
 vi.mock('../../../api/groups', () => ({
   fetchGroup: vi.fn(),
@@ -30,6 +40,54 @@ vi.mock('../../../api/devices', () => ({
   createDevice: vi.fn(),
   updateDevice: vi.fn(),
 }))
+
+vi.mock('../../../api/policies', () => ({
+  fetchPolicyList: vi.fn(),
+  fetchPolicy: vi.fn(),
+  createPolicy: vi.fn(),
+  updatePolicy: vi.fn(),
+}))
+
+vi.mock('../../../api/policyAssignments', () => ({
+  fetchGroupPolicyAssignments: vi.fn(),
+  createGroupPolicyAssignment: vi.fn(),
+  deleteGroupPolicyAssignment: vi.fn(),
+  fetchGroupPolicyAssignmentJobs: vi.fn(),
+  fetchPolicyAssignmentJob: vi.fn(),
+  fetchPolicyDeviceAssignments: vi.fn(),
+  createPolicyDeviceAssignment: vi.fn(),
+  deletePolicyDeviceAssignment: vi.fn(),
+  fetchPolicyGroupAssignments: vi.fn(),
+}))
+
+function policySummary(overrides: Partial<PolicySummary> = {}): PolicySummary {
+  return { id: 1, name: 'Security Baseline', type: 'wifi', status: 'active', ...overrides }
+}
+
+function policyAssignmentsResponse(
+  policies: PolicySummary[],
+  total = policies.length,
+): { policies: PolicySummary[]; meta: { current_page: number; per_page: number; total_count: number; total_pages: number } } {
+  return {
+    policies,
+    meta: { current_page: 1, per_page: 20, total_count: total, total_pages: total === 0 ? 0 : Math.ceil(total / 20) },
+  }
+}
+
+function job(overrides: Partial<PolicyAssignmentJob> = {}): PolicyAssignmentJob {
+  return {
+    id: 1,
+    status: 'pending',
+    total_count: 3,
+    processed_count: 0,
+    error_message: null,
+    policy: { id: 1, name: 'Security Baseline' },
+    group: { id: 7, name: 'Sales Team' },
+    created_at: '2026-09-17T08:00:00.000Z',
+    updated_at: '2026-09-17T08:00:00.000Z',
+    ...overrides,
+  }
+}
 
 function group(overrides: Partial<Group> = {}): Group {
   return {
@@ -110,6 +168,12 @@ describe('GroupDetailView', () => {
     vi.clearAllMocks()
     vi.mocked(fetchGroup).mockResolvedValue({ group: group() })
     vi.mocked(fetchGroupDevices).mockResolvedValue(membersResponse([device()]))
+    // Reattach (A17) always fires on mount, regardless of which tab is active.
+    vi.mocked(fetchGroupPolicyAssignmentJobs).mockResolvedValue({
+      policy_assignment_jobs: [],
+      meta: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+    })
+    vi.mocked(fetchGroupPolicyAssignments).mockResolvedValue(policyAssignmentsResponse([]))
   })
 
   afterEach(() => {
@@ -142,15 +206,6 @@ describe('GroupDetailView', () => {
       expect(wrapper.find('[data-testid=group-detail-members-tab]').text()).toContain(
         'Thành viên (128)',
       )
-    })
-
-    it('renders "Policies" as a static, non-interactive label (F7 will enable it)', async () => {
-      const { wrapper } = await mountView()
-
-      const future = wrapper.find('.tab-item.future')
-      expect(future.text()).toBe('Policies')
-      expect(future.element.tagName).toBe('SPAN')
-      expect(future.attributes('title')).toBe('Có ở F7')
     })
 
     it('turns the whole page into "Không tìm thấy Group" on a 404, and does not load the tab', async () => {
@@ -569,6 +624,176 @@ describe('GroupDetailView', () => {
 
       expect(vi.mocked(fetchGroupDevices).mock.calls.length).toBe(memberCalls + 1)
       vi.useRealTimers()
+    })
+  })
+
+  describe('tab Policies (F8, §2.4)', () => {
+    it('switches between the two real tabs (no more dead <span>)', async () => {
+      const { wrapper } = await mountView()
+
+      expect(wrapper.find('[data-testid=group-detail-members-tab]').element.tagName).toBe('BUTTON')
+      expect(wrapper.find('[data-testid=group-detail-policies-tab]').element.tagName).toBe('BUTTON')
+      expect(wrapper.find('[data-testid=group-members-table]').exists()).toBe(true)
+
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=group-members-table]').exists()).toBe(false)
+      expect(fetchGroupPolicyAssignments).toHaveBeenCalledWith(7, { page: 1 })
+    })
+
+    it('lazy-loads the Policies tab only on its first click, not on mount', async () => {
+      await mountView()
+
+      expect(fetchGroupPolicyAssignments).not.toHaveBeenCalled()
+    })
+
+    it('reattaches pending/running jobs on mount, regardless of which tab is active', async () => {
+      vi.mocked(fetchGroupPolicyAssignmentJobs).mockResolvedValueOnce({
+        policy_assignment_jobs: [job()],
+        meta: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      })
+
+      const { wrapper } = await mountView()
+
+      expect(fetchGroupPolicyAssignmentJobs).toHaveBeenCalledWith(7, { status: ['pending', 'running'] })
+      // Still on "Thành viên", yet the banner (mounted globally, rendered
+      // here because AppShell is part of this component tree) shows up.
+      expect(wrapper.find('[data-testid=async-job-banner]').exists()).toBe(true)
+    })
+
+    it('renders the Policies list with Name/Type/Status columns and a "Gỡ" button per row', async () => {
+      vi.mocked(fetchGroupPolicyAssignments).mockResolvedValue(
+        policyAssignmentsResponse([policySummary({ id: 3, name: 'Security Baseline' })]),
+      )
+      const { wrapper } = await mountView()
+
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.findAll('[data-testid=group-policy-row]')).toHaveLength(1)
+      expect(wrapper.find('[data-field=name]').text()).toBe('Security Baseline')
+      expect(wrapper.find('[data-testid=group-policy-remove-button]').exists()).toBe(true)
+    })
+
+    it('shows "Group chưa được gán Policy nào." with a "+ Gán policy" CTA when empty', async () => {
+      vi.mocked(fetchGroupPolicyAssignments).mockResolvedValue(policyAssignmentsResponse([]))
+      const { wrapper } = await mountView()
+
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=empty-state]').text()).toContain('Group chưa được gán Policy nào.')
+      expect(wrapper.findAll('[data-testid=group-policy-assign-button]')).toHaveLength(1)
+    })
+
+    it('shows the tab error independently, leaving the header/members tab unaffected', async () => {
+      vi.mocked(fetchGroupPolicyAssignments).mockRejectedValueOnce({ response: { status: 500, data: {} } })
+      const { wrapper } = await mountView()
+
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=error-banner]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid=group-detail-name]').text()).toBe('Sales Team')
+    })
+
+    it('assigns a policy: opens the modal, tracks the returned job, shows no toast (banner is the feedback)', async () => {
+      vi.useFakeTimers()
+      vi.mocked(fetchPolicyList).mockResolvedValue({
+        policies: [{ id: 1, name: 'Security Baseline', type: 'wifi', configuration: {}, status: 'active', assignments_count: 0, created_at: '', updated_at: '' }],
+        meta: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      })
+      vi.mocked(createGroupPolicyAssignment).mockResolvedValueOnce({ policy_assignment_job: job() })
+
+      const { wrapper } = await mountView()
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+
+      await wrapper.find('[data-testid=group-policy-assign-button]').trigger('click')
+      await wrapper.find('[data-testid=group-policy-assign-search]').setValue('security')
+      await vi.advanceTimersByTimeAsync(300)
+      await wrapper.find('[data-testid=group-policy-assign-search-option]').trigger('click')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(createGroupPolicyAssignment).toHaveBeenCalledWith(7, 1)
+      expect(wrapper.find('[data-testid=group-policy-assign-modal]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid=async-job-banner]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid=toast]').exists()).toBe(false)
+      vi.useRealTimers()
+    })
+
+    it('removes a policy through the confirm modal, toasts, and refetches the tab', async () => {
+      vi.mocked(fetchGroupPolicyAssignments).mockResolvedValue(
+        policyAssignmentsResponse([policySummary({ id: 3, name: 'Security Baseline' })]),
+      )
+      vi.mocked(deleteGroupPolicyAssignment).mockResolvedValueOnce(undefined)
+      const { wrapper } = await mountView()
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+
+      await wrapper.find('[data-testid=group-policy-remove-button]').trigger('click')
+      expect(wrapper.find('[data-testid=confirm-modal]').text()).toContain(
+        'Gỡ policy "Security Baseline" khỏi group "Sales Team"?',
+      )
+
+      vi.mocked(fetchGroupPolicyAssignments).mockResolvedValueOnce(policyAssignmentsResponse([]))
+      await wrapper.find('[data-testid=confirm-modal-confirm]').trigger('click')
+      await flushPromises()
+
+      expect(deleteGroupPolicyAssignment).toHaveBeenCalledWith(7, 3)
+      expect(wrapper.find('[data-testid=toast]').text()).toContain('Đã gỡ policy')
+    })
+
+    it('refetches the Policies tab as soon as a job for this group turns done, while the tab is active', async () => {
+      vi.mocked(fetchGroupPolicyAssignmentJobs).mockResolvedValueOnce({
+        policy_assignment_jobs: [job({ id: 11, status: 'running' })],
+        meta: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      })
+      const { wrapper } = await mountView()
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+      const callsBefore = vi.mocked(fetchGroupPolicyAssignments).mock.calls.length
+
+      vi.mocked(fetchPolicyAssignmentJob).mockResolvedValueOnce({
+        policy_assignment_job: job({ id: 11, status: 'done' }),
+      })
+      // Simulate the store's own poll tick landing — same store instance the
+      // component reads from.
+      const { useJobsStore } = await import('../../../stores/jobs')
+      const jobsStore = useJobsStore()
+      jobsStore.jobs = jobsStore.jobs.map((j) => (j.id === 11 ? job({ id: 11, status: 'done' }) : j))
+      await flushPromises()
+      await wrapper.vm.$nextTick()
+
+      expect(vi.mocked(fetchGroupPolicyAssignments).mock.calls.length).toBe(callsBefore + 1)
+    })
+
+    it('does not refetch immediately when the Policies tab is not active, but forces a reload on the next visit', async () => {
+      vi.mocked(fetchGroupPolicyAssignmentJobs).mockResolvedValueOnce({
+        policy_assignment_jobs: [job({ id: 12, status: 'running' })],
+        meta: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      })
+      const { wrapper } = await mountView()
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+      // Leave the tab before the job finishes.
+      await wrapper.find('[data-testid=group-detail-members-tab]').trigger('click')
+      const callsBefore = vi.mocked(fetchGroupPolicyAssignments).mock.calls.length
+
+      const { useJobsStore } = await import('../../../stores/jobs')
+      const jobsStore = useJobsStore()
+      jobsStore.jobs = jobsStore.jobs.map((j) => (j.id === 12 ? job({ id: 12, status: 'done' }) : j))
+      await flushPromises()
+
+      // Not fetched again right away (tab not active)...
+      expect(vi.mocked(fetchGroupPolicyAssignments).mock.calls.length).toBe(callsBefore)
+
+      // ...but re-selecting the tab loads fresh data instead of the cache.
+      await wrapper.find('[data-testid=group-detail-policies-tab]').trigger('click')
+      await flushPromises()
+      expect(vi.mocked(fetchGroupPolicyAssignments).mock.calls.length).toBe(callsBefore + 1)
     })
   })
 })

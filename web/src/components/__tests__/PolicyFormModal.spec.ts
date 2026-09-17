@@ -19,6 +19,7 @@ function policy(overrides: Partial<Policy> = {}): Policy {
     type: 'wifi',
     configuration: { ssid: 'corp' },
     status: 'active',
+    assignments_count: 0,
     created_at: '2026-09-17T08:00:00.000Z',
     updated_at: '2026-09-17T08:00:00.000Z',
     ...overrides,
@@ -314,6 +315,80 @@ describe('PolicyFormModal', () => {
         42,
         expect.objectContaining({ status: 'inactive' }),
       )
+    })
+  })
+
+  describe('deactivate confirm (F8, §2.1.1/§5)', () => {
+    it('blocks the PATCH and shows a confirm dialog when deactivating a policy with assignments > 0', async () => {
+      const wrapper = mount(PolicyFormModal, {
+        props: { mode: 'edit', policy: policy({ status: 'active', assignments_count: 3 }) },
+      })
+
+      await statusSelect(wrapper).setValue('inactive')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(updatePolicy).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').text()).toContain(
+        'Policy đang được gán cho 3 group/device.',
+      )
+    })
+
+    it('calls the PATCH only after the confirm is accepted', async () => {
+      vi.mocked(updatePolicy).mockResolvedValueOnce({ policy: policy({ status: 'inactive' }) })
+      const wrapper = mount(PolicyFormModal, {
+        props: { mode: 'edit', policy: policy({ status: 'active', assignments_count: 3 }) },
+      })
+
+      await statusSelect(wrapper).setValue('inactive')
+      await wrapper.find('form').trigger('submit')
+      await wrapper.find('[data-testid=policy-deactivate-confirm-confirm]').trigger('click')
+      await flushPromises()
+
+      expect(updatePolicy).toHaveBeenCalledWith(42, expect.objectContaining({ status: 'inactive' }))
+      expect(wrapper.emitted('saved')).toHaveLength(1)
+    })
+
+    it('does not call the PATCH when the confirm is cancelled', async () => {
+      const wrapper = mount(PolicyFormModal, {
+        props: { mode: 'edit', policy: policy({ status: 'active', assignments_count: 3 }) },
+      })
+
+      await statusSelect(wrapper).setValue('inactive')
+      await wrapper.find('form').trigger('submit')
+      await wrapper.find('[data-testid=policy-deactivate-confirm-cancel]').trigger('click')
+      await flushPromises()
+
+      expect(updatePolicy).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').exists()).toBe(false)
+    })
+
+    it('does not confirm when assignments_count is 0 (A20)', async () => {
+      vi.mocked(updatePolicy).mockResolvedValueOnce({ policy: policy({ status: 'inactive' }) })
+      const wrapper = mount(PolicyFormModal, {
+        props: { mode: 'edit', policy: policy({ status: 'active', assignments_count: 0 }) },
+      })
+
+      await statusSelect(wrapper).setValue('inactive')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').exists()).toBe(false)
+      expect(updatePolicy).toHaveBeenCalledWith(42, expect.objectContaining({ status: 'inactive' }))
+    })
+
+    it('never confirms when activating (inactive -> active), regardless of assignments_count (A22)', async () => {
+      vi.mocked(updatePolicy).mockResolvedValueOnce({ policy: policy({ status: 'active' }) })
+      const wrapper = mount(PolicyFormModal, {
+        props: { mode: 'edit', policy: policy({ status: 'inactive', assignments_count: 5 }) },
+      })
+
+      await statusSelect(wrapper).setValue('active')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').exists()).toBe(false)
+      expect(updatePolicy).toHaveBeenCalledWith(42, expect.objectContaining({ status: 'active' }))
     })
   })
 

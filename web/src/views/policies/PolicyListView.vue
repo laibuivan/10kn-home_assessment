@@ -11,12 +11,14 @@ import StatusBadge from '../../components/StatusBadge.vue'
 import EmptyState from '../../components/EmptyState.vue'
 import ErrorState from '../../components/ErrorState.vue'
 import PolicyFormModal from '../../components/PolicyFormModal.vue'
+import ConfirmModal from '../../components/ConfirmModal.vue'
 import ActionsMenu from '../../components/ActionsMenu.vue'
 import type { ActionsMenuItem } from '../../components/ActionsMenu.vue'
 import { usePoliciesStore } from '../../stores/policies'
 import { useToastStore } from '../../stores/toast'
 import { extractErrorMessage } from '../../utils/apiError'
 import { firstQueryValue } from '../../utils/queryParams'
+import { DEACTIVATE_WARNING } from '../../utils/policyMessages'
 import { isPolicyStatus, type Policy, type PolicyQueryParams, type PolicyStatus } from '../../types/policy'
 import type { DataTableColumn, FilterDefinition } from '../../types/ui'
 
@@ -65,15 +67,21 @@ const filters: FilterDefinition[] = [
   },
 ]
 
-// No "Số nơi đang gán" column (SoT OQ-6 — F8 carry-over: no
-// `policy_assignments` table exists yet at F7, `serialize_policy` does not
-// return this field).
+// F8 carry-over (F7 OQ-6) — "Số nơi đang gán" between Status and "⋯", exact
+// ASCII order UI_UX_design.md §7.1 draws (Name │ Type │ Status │ Số nơi
+// đang gán │ ⋯). Plain value, no `cellClass` (same as Group's
+// `devices_count` — not a number that needs `tabular-nums` emphasis).
 const columns: DataTableColumn<Policy>[] = [
   { key: 'name', label: 'Name', value: (row) => row.name },
   { key: 'type', label: 'Type', value: (row) => row.type },
   { key: 'status', label: 'Status' },
+  { key: 'assignments_count', label: 'Số nơi đang gán', value: (row) => String(row.assignments_count) },
   { key: 'actions', label: '', cellClass: 'actions-cell' },
 ]
+
+function viewDetail(policy: Policy) {
+  router.push(`/policies/${policy.id}`)
+}
 
 // ---------- Create/edit modal ----------
 const showModal = ref(false)
@@ -104,10 +112,23 @@ function isToggling(id: number): boolean {
   return togglingIds.value.includes(id)
 }
 
+/** F8 — policy awaiting the deactivate-with-assignments confirm (§2.1.1); `null` means the dialog is not mounted. */
+const pendingDeactivate = ref<Policy | null>(null)
+
 async function toggleStatus(policy: Policy) {
   if (isToggling(policy.id)) return
-  togglingIds.value = [...togglingIds.value, policy.id]
   const nextStatus: PolicyStatus = policy.status === 'active' ? 'inactive' : 'active'
+  // A20/A21/A22: only deactivating (active -> inactive) with N > 0 needs a
+  // second look. Activating back (A22) never does — nothing is at risk.
+  if (nextStatus === 'inactive' && policy.assignments_count > 0) {
+    pendingDeactivate.value = policy
+    return
+  }
+  await doToggleStatus(policy, nextStatus)
+}
+
+async function doToggleStatus(policy: Policy, nextStatus: PolicyStatus) {
+  togglingIds.value = [...togglingIds.value, policy.id]
   try {
     await store.updatePolicy(policy.id, { status: nextStatus })
     toastStore.push(nextStatus === 'active' ? 'Đã kích hoạt policy' : 'Đã vô hiệu hoá policy')
@@ -119,11 +140,17 @@ async function toggleStatus(policy: Policy) {
   }
 }
 
+async function confirmDeactivate() {
+  const policy = pendingDeactivate.value
+  if (!policy) return
+  pendingDeactivate.value = null
+  await doToggleStatus(policy, 'inactive')
+}
+
 /**
- * Exactly 2 items — "Sửa" and the status toggle (S30: no "Xóa"/"Xem chi
- * tiết", since neither a delete route nor a detail page exists at F7).
- * Both are disabled on the row currently mid-toggle, so a stray edit
- * submit can never race the in-flight PATCH.
+ * F8 reopens "Xem chi tiết" as the 3rd item (A28, F7-frontend.md §0 had
+ * deliberately left it out — no detail page existed yet). Same order Group
+ * settled on: edit, the action-specific one, view last.
  */
 function rowActions(policy: Policy): ActionsMenuItem[] {
   const toggling = isToggling(policy.id)
@@ -141,6 +168,12 @@ function rowActions(policy: Policy): ActionsMenuItem[] {
       onClick: () => toggleStatus(policy),
       disabled: toggling,
       testId: 'policy-action-toggle-status',
+    },
+    {
+      key: 'view',
+      label: 'Xem chi tiết',
+      onClick: () => viewDetail(policy),
+      testId: 'policy-action-view',
     },
   ]
 }
@@ -294,12 +327,14 @@ watch(
     </EmptyState>
 
     <template v-else>
-      <!-- No `onRowClick` — F7 has no detail page to go to (OQ-7). -->
+      <!-- F8 — the row is now clickable, same pattern GroupListView adopted
+           when `/groups/:id` was born at F6 (§2.1). -->
       <DataTable
         :columns="columns"
         :rows="store.policies"
         :row-key="(row: Policy) => row.id"
         :loading="store.loading"
+        :on-row-click="viewDetail"
         test-id="policies-table"
         row-test-id="policy-row"
       >
@@ -307,7 +342,11 @@ watch(
           <StatusBadge :status="(row as Policy).status" />
         </template>
         <template #cell-actions="{ row }">
-          <ActionsMenu :items="rowActions(row as Policy)" />
+          <!-- Required now the row itself is clickable: without it, opening
+               the "⋯" menu would also navigate to the detail page. -->
+          <span @click.stop>
+            <ActionsMenu :items="rowActions(row as Policy)" />
+          </span>
         </template>
       </DataTable>
 
@@ -329,5 +368,17 @@ watch(
     :policy="modalPolicy"
     @saved="onSaved"
     @cancel="closeModal"
+  />
+
+  <ConfirmModal
+    v-if="pendingDeactivate"
+    title="Chuyển Policy sang inactive?"
+    :message="DEACTIVATE_WARNING(pendingDeactivate.assignments_count)"
+    confirm-label="Chuyển sang inactive"
+    :on-confirm="confirmDeactivate"
+    test-id="policy-deactivate-confirm"
+    confirm-test-id="policy-deactivate-confirm-confirm"
+    cancel-test-id="policy-deactivate-confirm-cancel"
+    @cancel="pendingDeactivate = null"
   />
 </template>
