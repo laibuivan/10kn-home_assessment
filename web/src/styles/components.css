@@ -251,3 +251,15 @@ button.tab-item { background: none; border: none; border-bottom: 2px solid trans
 
 /* ---------- Policy Detail — configuration code block (F8) ---------- */
 .code-block { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; }
+
+/* ---------- Device Detail — "Policy đang áp dụng" (F9) ---------- */
+.policies-source-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Plain-text button styled as an inline link — the accordion trigger
+   ("Xem tất cả nguồn") is not a navigation link, so `<a>` would be wrong
+   semantics; this resets button chrome to read like one (F9-frontend.md §2). */
+.link-btn { font: inherit; font-size: 12.5px; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+.link-btn:hover { color: var(--accent-strong); }
+.conflict-flag { color: var(--warning); cursor: help; }
+.candidate-list { list-style: none; margin: 6px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.candidate-list li { display: flex; align-items: center; gap: 10px; font-size: 12.5px; flex-wrap: wrap; }
+.candidate-list .reason { color: var(--text-muted); }

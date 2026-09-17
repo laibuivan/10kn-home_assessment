@@ -7,7 +7,16 @@ Rails.application.routes.draw do
     namespace :v1 do
       resources :sessions, only: [ :create ]
       resource :me, only: [ :show ], controller: "me"
-      resources :devices, only: [ :index, :show, :create, :update ]
+      resources :devices, only: [ :index, :show, :create, :update ] do
+        member do
+          # F9 — docs/design/F9-api.md §1. `member do`, not a nested
+          # `resources :applied_policies` — keeps params[:id] meaning
+          # Device (same reasoning as :groups/:policies member routes
+          # above), and OQ-2 wants this endpoint tested/loaded separately
+          # from GET /devices/:id (independent loading/error state, F4 §12).
+          get "applied_policies", to: "device_applied_policies#index"
+        end
+      end
       # `member do ... end`, not a nested `resources :devices` — the nested
       # form would rename the Group param to :group_id, while the contract
       # (SoT F6 §8, docs/design/F6-api.md §1) is `groups/:id/devices` and

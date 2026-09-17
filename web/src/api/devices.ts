@@ -7,6 +7,7 @@ import type {
   DeviceQueryParams,
   DeviceUpdatePayload,
 } from '../types/device'
+import type { AppliedPoliciesResponse } from '../types/appliedPolicy'
 
 /**
  * GET /api/v1/devices — docs/design/F2-api.md §1.
@@ -52,5 +53,15 @@ export async function createDevice(payload: DeviceCreatePayload): Promise<Device
 /** PATCH /api/v1/devices/:id — docs/design/F3-api.md §1. */
 export async function updateDevice(id: number, payload: DeviceUpdatePayload): Promise<DeviceResponse> {
   const response = await apiClient.patch<DeviceResponse>(`/api/v1/devices/${id}`, payload)
+  return response.data
+}
+
+/**
+ * GET /api/v1/devices/:id/applied_policies — docs/design/F9-api.md §1.
+ * Tách khỏi `fetchDevice` có chủ đích (OQ-2) — endpoint riêng cho khối
+ * "Policy đang áp dụng" có loading/error độc lập (F9-frontend.md §3.1).
+ */
+export async function fetchAppliedPolicies(deviceId: number | string): Promise<AppliedPoliciesResponse> {
+  const response = await apiClient.get<AppliedPoliciesResponse>(`/api/v1/devices/${deviceId}/applied_policies`)
   return response.data
 }
