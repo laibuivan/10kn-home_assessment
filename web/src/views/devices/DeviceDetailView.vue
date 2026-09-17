@@ -8,6 +8,7 @@ import ErrorState from '../../components/ErrorState.vue'
 import DeviceFormModal from '../../components/DeviceFormModal.vue'
 import ConfirmModal from '../../components/ConfirmModal.vue'
 import DeviceGroupAddModal from '../../components/DeviceGroupAddModal.vue'
+import AppliedPoliciesBlock from '../../components/AppliedPoliciesBlock.vue'
 import { useDevicesStore } from '../../stores/devices'
 import { useToastStore } from '../../stores/toast'
 import { fetchDevice } from '../../api/devices'
@@ -24,7 +25,10 @@ import type { DeviceDetail, DeviceGroupRef } from '../../types/device'
  * same `GET /api/v1/devices/:id` response (F6-api.md §2.6), so the block
  * still has no fetch state of its own — it shares this page's
  * loading/error/notFound, and every add/remove simply calls `load()` again.
- * "Policy đang áp dụng" is still the static empty state until F9.
+ * "Policy đang áp dụng" became real at F9: `AppliedPoliciesBlock` mounts
+ * once `device` exists and fetches its own data through a separate
+ * endpoint, with its own loading/error state independent of this page's
+ * (docs/design/F9-frontend.md §3.1).
  */
 
 const route = useRoute()
@@ -242,12 +246,7 @@ function formatTimestamp(value: string | null): string | null {
         </div>
         <div class="detail-block">
           <h4>Policy đang áp dụng</h4>
-          <div data-testid="device-detail-policies-empty">
-            <div class="placeholder-box">
-              <span class="ic" aria-hidden="true">▣</span>
-              <span>Chưa có policy nào áp dụng.</span>
-            </div>
-          </div>
+          <AppliedPoliciesBlock :device-id="device.id" />
         </div>
       </div>
     </template>

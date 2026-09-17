@@ -9,11 +9,11 @@ tương ứng đánh dấu **TODO**, không bịa trước.
 - [Mô hình dữ liệu / quan hệ](#mô-hình-dữ-liệu--quan-hệ) — TODO (đầy đủ khi F2–F9 xong)
 - [Luồng chính](#luồng-chính) — TODO (login đã xong, gán policy/xem policy chờ F6–F9)
 - [Xử lý Group rất lớn](#xử-lý-group-rất-lớn) ✅ F6/F8
-- [Tính policy đang áp dụng và conflict](#tính-policy-đang-áp-dụng-và-conflict) — TODO (F9)
+- [Tính policy đang áp dụng và conflict](#tính-policy-đang-áp-dụng-và-conflict) ✅ F9
 - [Auth / phân quyền / tách Organization](#auth--phân-quyền--tách-organization) ✅ F0
 - [Giả định](#giả-định) — TODO
 - [Rủi ro production còn lại](#rủi-ro-production-còn-lại) — TODO
-- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5, F6, F7, F8 done)
+- [AI](#ai) — cập nhật dần theo feature (F0, F2, F3, F4, F5, F6, F7, F8, F9 done)
 
 ---
 
@@ -86,9 +86,70 @@ và tab Thành viên luôn phân trang server-side dù group có 10.000 thành v
 
 ## Tính policy đang áp dụng và conflict
 
-TODO — điền khi F9 (policy resolution engine) xong. Quyết định resolve
-conflict mặc định đã chốt trước ở `CLAUDE.md` §4, sẽ chuyển vào đây kèm
-implementation thật khi F9 build.
+F9 (`api/app/services/devices/policy_resolver.rb`) trả về policy thực áp
+dụng trên 1 Device, đúng công thức bất biến ở `CLAUDE.md` §4: hợp của (policy
+gán trực tiếp) ∪ (policy của mọi Group Device đang thuộc), lọc `status:
+active` **tại thời điểm gọi** (không cache — gọi lại nhiều lần với state
+không đổi ra kết quả giống hệt tuyệt đối, kể cả thứ tự mảng — R5/A18).
+
+**Query**: 2-4 câu SQL cố định, không phụ thuộc kích thước Group (`GET
+.../devices/:id/applied_policies` không chậm dần khi 1 Group có 10.000
+device — chỉ phụ thuộc số Group *Device* thuộc và số Policy gán trực tiếp,
+luôn nhỏ): 1 câu lấy `group_ids` Device thuộc
+(`GroupMembership.joins(:group).merge(current_organization.groups)` — filter
+phòng vệ cross-org thứ 2, cùng idiom F6/F8, không phải `raise`), 2 câu lấy
+`policy_assignments` (theo `device_id` và theo `group_id IN (...)`), cộng
+`includes(:policy, :group)` để tránh N+1. Lọc `status: active` thực hiện ở
+**tầng Ruby**, không ở SQL — candidate `inactive` vẫn được giữ lại để phục vụ
+"Xem tất cả nguồn" (mỗi `type` chỉ **biến mất hoàn toàn** khỏi kết quả khi
+không còn candidate `active` nào — không xuất hiện dạng rỗng).
+
+**Chọn 1 policy thắng khi cùng `type` có nhiều candidate** — 1 khóa sort duy
+nhất, 4 phần tử, áp dụng cho tập candidate `active`:
+
+```ruby
+sort_key = ->(c) {
+  [
+    c.device_id.present? ? 0 : 1,   # R2 — gán trực tiếp luôn thắng gán qua Group
+    -c.policy.updated_at.to_f,      # R3 — giữa các Group, updated_at mới nhất thắng
+    c.policy_id,                    # R4 — hòa updated_at, id nhỏ hơn thắng
+    c.group_id || Float::INFINITY   # tie-break hiển thị: cùng 1 policy_id qua ≥2
+                                     # Group (vd Device thuộc cả Group A và B, cả 2
+                                     # đều gán đúng Policy #7) không phải conflict —
+                                     # badge nguồn hiển thị group_id nhỏ nhất, không
+                                     # phụ thuộc thứ tự trả về không có ORDER BY
+                                     # tường minh của 2 câu SQL ở trên
+  ]
+}
+```
+
+Phần tử thứ 4 (`group_id`) **không có trong câu chữ gốc R2-R4 của `CLAUDE.md`
+§4** — không thêm nó, `min_by` sẽ phụ thuộc thứ tự Postgres trả hàng (không
+có `ORDER BY` tường minh ở 2 query trên) mỗi khi cùng 1 Policy được gán cho
+≥2 Group của cùng 1 Device — vi phạm thẳng "kết quả phải là hàm thuần của
+state hiện tại, gọi lại nhiều lần ra cùng kết quả" (R5). Đây là điểm dễ bỏ
+sót nhất nếu chỉ đọc `CLAUDE.md`/SoT gốc mà không đọc `docs/design/F9-api.md`
+§2.5 — `api/spec/services/devices/policy_resolver_spec.rb` có 1 test riêng
+tạo 2 `PolicyAssignment` theo thứ tự **ngược** (`group_id` lớn hơn insert
+trước) để phát hiện nếu code lỡ phụ thuộc thứ tự insert/SQL thay vì tie-break
+tường minh.
+
+**Conflict** (banner cảnh báo + cờ `⚠` cấp dòng ở FE) tính **độc lập** với
+việc đã chọn được dòng thắng: `true` khi tập candidate `active` của 1 `type`
+có ≥2 `configuration` khác nhau (so sánh Ruby Hash `==` sau khi Postgres
+decode JSONB, không so sánh ở SQL) — kể cả khi 1 trong 2 nguồn là gán trực
+tiếp và đã thắng chắc chắn (vd Device gán trực tiếp Policy A, đồng thời thuộc
+Group gán Policy B khác configuration cùng `type` — A luôn thắng nhưng vẫn
+hiện banner, vì 2 policy khác nhau *đang* được gán chồng lên nhau, chỉ là hệ
+thống đã tự chọn 1 cái). Ngược lại, cùng 1 `policy_id` gán qua nhiều Group
+(ví dụ trên) không phải conflict (chỉ 1 `configuration` duy nhất trong tập
+`active`) dù có ≥2 dòng `policy_assignments` — banner **không** hiện.
+
+Response JSON đầy đủ (`GET /api/v1/devices/:id/applied_policies`), 2 chuỗi
+`excluded_reason` cố định ("Ưu tiên thấp hơn" / "Policy đang inactive, không
+được tính hiệu lực"), và toàn bộ 15 scenario canonical (S1-S13, S18, S19) —
+xem `docs/design/F9-api.md` §2.3/§2.5/§3, `docs/sot/F9-policy-resolution.md`
+§11.
 
 ## Auth / phân quyền / tách Organization
 
@@ -203,6 +264,105 @@ eslint+vitest. 39 acceptance scenario của F5 vẫn được viết đầy đ�
 `docs/sot/F5-group-crud.md` §11 (dùng làm hợp đồng hành vi, ánh xạ trực tiếp
 vào RSpec request spec + Vitest component test thay vì Gherkin/Playwright).
 Không có file `features/f5-group-crud.feature` nào được tạo.
+
+### F9 (Policy resolution engine — policy đang áp dụng trên Device, xử lý conflict cùng `type`)
+- **AI làm**: toàn bộ vòng đời — SoT, 3 bản thiết kế + preview HTML, plan (13
+  task/6 wave), implement (BE TDD trước — service spec RED rồi code GREEN —
+  rồi controller/request spec, FE types/api/component/mount song song), gate.
+  **User ủy quyền cho AI tự review & approve toàn bộ** trong phiên làm việc
+  này, cùng cách đã làm từ F4 — không dừng lại chờ duyệt từng bước.
+- **Không phát hiện mâu thuẫn thật nào giữa SoT/3 design/`CLAUDE.md`/PRD cần
+  dừng lại báo cáo** trong lúc implement — plan đã tự đối chiếu và chốt hết ở
+  bước `/design`/`/plan` trước đó (khác F8, nơi có 2 mâu thuẫn đa-nguồn thật
+  phải dừng ở bước brainstorm). 4 điểm plan tự nhắc "dễ bị bỏ sót nếu code
+  nhanh" (sort key 4 phần tử không phải 3, giữ nguyên testid
+  `device-detail-policies-empty`, `load_candidates` phải
+  `.joins(:group).merge(current_organization.groups)`, nhớ sửa
+  `DeviceDetailView.spec.ts`) đều đã implement đúng ngay từ đầu, không phải
+  quay lại sửa.
+- **TDD tuân thủ nghiêm cho `api/app/services/devices/policy_resolver.rb`**
+  (`CLAUDE.md` §3 rule 4, đúng service được nêu đích danh làm ví dụ):
+  `policy_resolver_spec.rb` viết trước, chạy `bundle exec rspec` xác nhận RED
+  thật (`NameError: uninitialized constant Devices` — chưa có class, không
+  phải assertion fail giả RED), rồi mới viết `policy_resolver.rb`, chạy lại
+  tới GREEN (15/15 example) mà không sửa spec để né logic khó — 1 test cố ý
+  tạo 2 `PolicyAssignment` theo thứ tự **ngược** id Group để bắt lỗi nếu
+  implementation lỡ phụ thuộc thứ tự SQL thay vì tie-break tường minh ở phần
+  tử thứ 4 của sort key (xem "Tính policy đang áp dụng và conflict" ở trên).
+- **Bẫy môi trường tự phát hiện khi chạy gate, không phải lỗi code**:
+  `docker-compose.yml` set `RAILS_ENV: development` cho service `api` —
+  `spec/rails_helper.rb` dùng `ENV['RAILS_ENV'] ||= 'test'`, và vì biến đã có
+  sẵn giá trị `development` từ container, `||=` không ghi đè được. Hệ quả:
+  chạy `bundle exec rspec` (không set `RAILS_ENV=test` tường minh) load
+  `config/environments/development.rb` thay vì `test.rb`, nơi
+  `config.hosts.clear` không chạy → mọi request spec HTTP thật (bao gồm
+  `device_applied_policies_spec.rb`) bị `ActionDispatch::HostAuthorization`
+  chặn 403 ("Blocked hosts: www.example.com") ngay từ request đầu tiên — lỗi
+  hạ tầng, không phải lỗi F9. Cách phát hiện: request spec service (không
+  gọi HTTP, chỉ gọi thẳng class Ruby) chạy sạch, còn request spec HTTP thì
+  toàn bộ báo lỗi giống hệt nhau bất kể nội dung test — dấu hiệu rõ ràng đây
+  là lỗi môi trường chứ không phải 10 test cùng sai logic. Sửa bằng chạy
+  đúng `RAILS_ENV=test bundle exec rspec` (đúng cách các gate trước đó của
+  dự án vẫn chạy, không phải thay đổi hành vi app) — không sửa
+  `docker-compose.yml`/`rails_helper.rb` vì đây là quy ước sẵn có của dự án,
+  không phải bug cần fix, chỉ là lệnh gọi thiếu biến môi trường.
+- **Tự thiết kế (không có trong 3 bản design, phải tự quyết định nhỏ khi
+  code, không ảnh hưởng hợp đồng API/FE đã chốt)**:
+  - Thêm 3 class CSS mới vào `web/src/styles/components.css`
+    (`.link-btn`/`.conflict-flag`/`.candidate-list`) — `F9-frontend.md` giả
+    định tái dùng `.chip`/`.warning-banner`/`.skeleton-cell` (đã có thật, xác
+    nhận trước khi dùng đúng theo chỉ dẫn coordinator), nhưng không đặt tên
+    class cụ thể cho nút "Xem tất cả nguồn"/cờ conflict/danh sách accordion —
+    3 class này chưa tồn tại trong codebase, thêm mới theo đúng "extend, không
+    fork" đã ghi ở đầu file CSS.
+  - Cấu trúc `<tr>` accordion dùng `<template v-for :key="entry.type">` bọc 2
+    `<tr>` liền nhau (dòng chính + dòng accordion `colspan="4"`) thay vì tách
+    2 `v-for` riêng — cách duy nhất giữ đúng thứ tự DOM (accordion luôn ngay
+    dưới dòng `type` của nó) mà vẫn có 1 `:key` ổn định cho Vue.
+- **Gate xác nhận độc lập (không chỉ tin báo cáo của subagent implement)**:
+  coordinator tự chạy lại cả 3 gate sau khi subagent báo Done —
+  `bundle exec rubocop` (98 file/0 offense), `RAILS_ENV=test bundle exec
+  rspec` **trong container `api` qua `docker compose exec`** (632
+  example/0 failure — toàn bộ suite F0-F9, không chỉ file mới; chạy trên
+  máy host trần bị lệch version gem `fugit` do `Gemfile.lock` đòi 1.14.0
+  nhưng gem cài local là 1.13.0 — dấu hiệu môi trường host không đồng bộ
+  với container, không phải lỗi F9, sửa bằng `bundle install` chứ không
+  sửa `Gemfile.lock`), `npm run lint` (sạch), `npx vitest run` + `npm run
+  build` (`vue-tsc -b && vite build` sạch) — trước khi coi F9 Done.
+- **2 bug thật do `/code-review high` phát hiện, đã sửa** (không phải chỉ
+  nitpick — cả 2 là lỗi correctness/UX rò rỉ state giữa 2 Device khác nhau
+  trên cùng 1 component instance, chỉ xảy ra khi user điều hướng nhanh giữa
+  2 trang `/devices/:id` mà Vue Router tái dùng instance thay vì remount):
+  1. `AppliedPoliciesBlock.load()` không có request-token guard — nếu
+     response của Device A về **sau** khi user đã chuyển sang Device B (và
+     request của B đã resolve trước), `items.value` bị ghi đè ngược bằng dữ
+     liệu cũ của A trong khi trang đang hiển thị Device B. Sửa bằng biến
+     đếm `requestToken` cục bộ, chỉ áp dụng response nếu token còn khớp lúc
+     resolve (`web/src/components/AppliedPoliciesBlock.vue`).
+  2. `expandedTypes` (state "đang mở accordion") không bị reset khi
+     `deviceId` đổi — accordion đang mở ở Device A vẫn hiện mở cho Device B
+     nếu B cũng có `type` trùng tên, lộ nhầm lý do loại candidate của A.
+     Sửa bằng reset `expandedTypes.value = []` ở đầu `load()`.
+  2 fix trên kèm 2 test Vitest mới (`AppliedPoliciesBlock.spec.ts`) tái hiện
+  đúng race condition/leak rồi xác nhận đã sửa; test `DeviceDetailView.spec.ts`
+  dòng ~260 (mount trực tiếp, không qua helper `mountView()`) cũng được
+  review chỉ ra thiếu `flushPromises()` thứ 2 — bổ sung cho nhất quán, dù
+  chưa gây fail vì test đó chưa assert lên `device-detail-policies-*`.
+  4 finding còn lại của review **không sửa**, mỗi cái có lý do riêng:
+  - Gộp `load_candidates` (2 query direct/via_group) thành 1 câu `OR` — đi
+    ngược quyết định đã approve tường minh ở `F9-db.md` §3.1/`F9-api.md`
+    §6.1 (tách riêng có chủ đích để chỉ nhánh group mới cần thêm
+    `.joins(:group).merge(...)` phòng vệ cross-org; gộp lại sẽ phải áp lớp
+    phòng vệ đó cho cả nhánh direct dù không cần) — không phải sơ suất.
+  - Gộp 3 hàm serialize Policy trùng lặp giữa `PoliciesController`/
+    `GroupPolicyAssignmentsController`/`PolicyResolver` thành 1 serializer
+    dùng chung — finding hợp lệ (trùng lặp thật), nhưng sửa sẽ phải đụng 2
+    controller ngoài phạm vi diff F9, tăng rủi ro ngoài slice đang review —
+    để lại làm rủi ro production ghi nhận, không sửa trong phiên F9 này.
+  - Gộp 2 lượt `sort_by`/`map` (active/inactive) trong `resolve_type` thành
+    1 lượt, và cache `isExpanded` thay vì gọi lại 3 lần/dòng — cả 2 là tối
+    ưu vi mô, không ảnh hưởng correctness, không đáng đổi rủi ro sửa lại
+    code đã qua TDD/test xanh chỉ để giảm vài phép lặp mảng nhỏ.
 
 ### F8 (Policy assignment — gán Group và/hoặc Device, chặn inactive/chéo org, chịu group lớn, trạng thái job)
 - **AI làm**: toàn bộ vòng đời — SoT (12 OQ), 3 bản thiết kế + preview HTML,

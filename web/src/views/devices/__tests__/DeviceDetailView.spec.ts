@@ -4,7 +4,7 @@ import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import { setActivePinia, createPinia } from 'pinia'
 import DeviceDetailView from '../DeviceDetailView.vue'
 import { useDevicesStore } from '../../../stores/devices'
-import { fetchDevice, updateDevice } from '../../../api/devices'
+import { fetchDevice, updateDevice, fetchAppliedPolicies } from '../../../api/devices'
 import { fetchGroupList } from '../../../api/groups'
 import { addGroupDevices, removeGroupDevice } from '../../../api/group-memberships'
 import type { DeviceDetail } from '../../../types/device'
@@ -15,6 +15,7 @@ vi.mock('../../../api/devices', () => ({
   updateDevice: vi.fn(),
   createDevice: vi.fn(),
   fetchDeviceList: vi.fn(),
+  fetchAppliedPolicies: vi.fn(),
 }))
 
 vi.mock('../../../api/groups', () => ({
@@ -87,6 +88,10 @@ async function mountView(path: string): Promise<{ wrapper: VueWrapper; router: R
 
   const wrapper = mount(DeviceDetailView, { global: { plugins: [router] } })
   await flushPromises()
+  // 2nd tick: AppliedPoliciesBlock only starts its own fetch once `device`
+  // exists (F9-frontend.md §3.1), so 1 flush is not enough to also resolve
+  // that child fetch.
+  await flushPromises()
   return { wrapper, router }
 }
 
@@ -99,6 +104,11 @@ describe('DeviceDetailView', () => {
     localStorage.clear()
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // Default for every test that doesn't care about the policies block's
+    // content — only the tests in `describe('groups block (F6)')`-adjacent
+    // policy scenarios (none in this file, see AppliedPoliciesBlock.spec.ts)
+    // would override this.
+    vi.mocked(fetchAppliedPolicies).mockResolvedValue({ applied_policies: [] })
   })
 
   it("shows the device's full information and the empty group/policy blocks on success", async () => {
@@ -248,6 +258,9 @@ describe('DeviceDetailView', () => {
       router.push('/devices/42')
       await router.isReady()
       const wrapper = mount(DeviceDetailView, { global: { plugins: [router] } })
+      await flushPromises()
+      // 2nd tick — same reason as mountView(): AppliedPoliciesBlock only
+      // starts its own fetch once `device` exists (F9-frontend.md §3.1).
       await flushPromises()
 
       await wrapper.find('[data-testid=device-detail-add-group-button]').trigger('click')

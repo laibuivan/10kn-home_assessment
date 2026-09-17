@@ -1,0 +1,441 @@
+<title>F9 Policy Resolution Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* ============ TOKENS — khớp UI_UX_design.md §12, không tự đổi ============ */
+  :root {
+    --bg: #F5F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F4;
+    --border: #DCE2E8;
+    --text: #16202E;
+    --text-muted: #5B6779;
+    --text-faint: #8A93A3;
+    --accent: #146C7A;
+    --accent-strong: #0F535E;
+    --on-accent: #FFFFFF;
+    --success: #1E8E5A;
+    --success-soft: #E3F5EC;
+    --neutral-badge: #5B6779;
+    --neutral-badge-soft: #EAEDF1;
+    --danger: #B3432E;
+    --danger-soft: #FBEAE6;
+    --warning: #9C6B12;
+    --warning-soft: #FBF1DD;
+    --focus: #146C7A;
+
+    --sidebar-bg: #10222A;
+    --sidebar-bg-active: #16323C;
+    --sidebar-text: #E7EEF0;
+    --sidebar-text-muted: #8FA8AC;
+    --sidebar-border: #1D3038;
+
+    --font-display: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+      --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+      --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+      --success: #3FCB86; --success-soft: #10281E;
+      --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+      --danger: #E2796A; --danger-soft: #33191A;
+      --warning: #D9A441; --warning-soft: #2E2410;
+      --focus: #3FB6C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+    --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+    --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+    --success: #3FCB86; --success-soft: #10281E;
+    --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+    --danger: #E2796A; --danger-soft: #33191A;
+    --warning: #D9A441; --warning-soft: #2E2410;
+    --focus: #3FB6C4;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.5; }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .page { max-width: 1040px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 40px; }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 3.4vw, 34px); margin: 6px 0 8px; text-wrap: balance; }
+  .lede { color: var(--text-muted); max-width: 68ch; font-size: 15px; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 100px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: var(--success-soft); }
+  .pill.ok .dot { background: var(--success); }
+  .pill.pending .dot { background: var(--text-faint); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .badge.active { color: var(--success); background: var(--success-soft); }
+  .badge.inactive { color: var(--neutral-badge); background: var(--neutral-badge-soft); }
+  .badge.retired { color: var(--danger); background: var(--danger-soft); }
+
+  section.screen { display: flex; flex-direction: column; gap: 10px; }
+  .screen-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .screen-label h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+  .screen-label .ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .window { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,33,0.04); position: relative; }
+  .chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .chrome .dots { display: flex; gap: 6px; flex: none; }
+  .chrome .dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .chrome .addr { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; text-align: center; }
+
+  .btn { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { color: var(--on-accent); background: var(--accent); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--surface-2); }
+  .btn-danger { color: var(--on-accent); background: var(--danger); }
+  .btn:disabled { cursor: default; opacity: 0.85; }
+  .btn-sm { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+
+  .error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
+  .warning-banner { color: var(--warning); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border)); display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .error-banner .banner-body { display: flex; flex-direction: column; gap: 8px; width: 100%; align-items: flex-start; }
+
+  /* ============ DataTable ============ */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .table-wrap { overflow-x: auto; }
+
+  /* ============ EmptyState / ErrorState ============ */
+  .placeholder-box { width: 100%; max-width: 420px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 30px 22px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0 auto; }
+  .placeholder-box .ic { font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); }
+  .placeholder-box strong { color: var(--text); font-weight: 600; font-size: 14px; }
+  .placeholder-box span { font-size: 12.5px; line-height: 1.5; }
+
+  /* ============ AppShell (Topbar + Sidebar) ============ */
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 13px; flex: none; }
+  .brand .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+
+  .shell { display: grid; grid-template-columns: 200px 1fr; min-height: 420px; }
+  .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--sidebar-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar .brand { justify-content: flex-start; margin-bottom: 18px; padding: 0 6px; }
+  .sidebar .brand .name { color: var(--sidebar-text); }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; font-weight: 500; color: var(--sidebar-text-muted); }
+  .nav-item.active { background: var(--sidebar-bg-active); color: var(--sidebar-text); }
+  .nav-item .ic { width: 15px; text-align: center; font-family: var(--font-mono); font-size: 12px; }
+  .sidebar-note { margin-top: auto; font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--sidebar-text-muted); border-top: 1px solid var(--sidebar-border); padding-top: 10px; }
+
+  .shell-main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: relative; }
+  .org-pill { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 5px 11px 5px 9px; }
+  .org-pill .ic { color: var(--accent); }
+  .user-btn { font: inherit; font-size: 13px; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 6px 8px; cursor: pointer; }
+  .shell-content { flex: 1; padding: 28px 24px; }
+
+  /* ============ Device Detail (F4) ============ */
+  .detail-back { font-size: 13px; color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .detail-header .id-row { display: flex; align-items: center; gap: 10px; font-family: var(--font-mono); font-size: 16px; font-weight: 600; }
+  .detail-header .meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .detail-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .detail-block h4 { margin: 0 0 10px; font-family: var(--font-display); font-size: 13.5px; font-weight: 600; }
+  @media (max-width: 640px) { .detail-grid { grid-template-columns: 1fr; } }
+
+  .group-link-list { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 8px; }
+  .group-link-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+  .group-link-list a { color: var(--accent); text-decoration: none; }
+
+  /* ============ F9 — khối "Policy đang áp dụng" (mới) ============ */
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 4px 6px 4px 10px; }
+  .conflict-flag { color: var(--warning); margin-left: 6px; cursor: help; font-size: 12px; }
+  .link-btn { font: inherit; font-size: 12.5px; font-weight: 500; color: var(--accent); background: none; border: none; padding: 4px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .link-btn:hover { color: var(--accent-strong); text-decoration: underline; }
+  .source-cell { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .candidates-row td { background: var(--surface-2); padding: 10px 14px 14px; }
+  .candidate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .candidate-list li { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 7px 10px; border-radius: 7px; background: var(--surface); border: 1px solid var(--border); }
+  .candidate-list li.is-winner { border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+  .candidate-list .candidate-name { font-weight: 500; flex: 1; min-width: 120px; }
+  .candidate-list .candidate-reason { color: var(--text-muted); font-size: 12px; text-align: right; flex: 1; }
+
+  .policies-skeleton { display: flex; flex-direction: column; gap: 10px; }
+  .skeleton-row { display: flex; gap: 10px; }
+  .skeleton-cell { display: inline-block; height: 11px; border-radius: 4px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.3s ease-in-out infinite; }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skeleton-cell { animation: none; } }
+
+  .state-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .state-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .state-card h3 { margin: 0; font-family: var(--font-display); font-size: 13.5px; font-weight: 600; }
+  .state-card .testid { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); }
+  @media (max-width: 860px) { .state-gallery { grid-template-columns: 1fr; } }
+
+  .notes { display: flex; flex-direction: column; gap: 6px; }
+  .note { font-size: 12.5px; color: var(--text-muted); display: flex; gap: 7px; align-items: flex-start; }
+  .note::before { content: "→"; color: var(--accent); flex: none; font-weight: 600; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12.5px; color: var(--text-faint); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer code, .lede code { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  @media (max-width: 640px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { flex-direction: row; overflow-x: auto; padding: 10px; }
+    .sidebar .brand, .sidebar-note { display: none; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">F9 · Frontend design preview</div>
+    <h1>Policy resolution engine — khối "Policy đang áp dụng"</h1>
+    <p class="lede">Preview khối "Policy đang áp dụng" ở <code>/devices/:id</code> (thay chỗ tĩnh-rỗng của F4): bảng Name/Type/Nguồn/Trạng thái, banner conflict, accordion "Xem tất cả nguồn", và 3 trạng thái tải (loading/empty/error) hoàn toàn độc lập với Header/Groups — theo <code>docs/design/F9-frontend.md</code>.</p>
+    <div class="status-row">
+      <span class="pill ok"><span class="dot"></span>SoT F9 — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design DB — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design API — approved</span>
+      <span class="pill pending"><span class="dot"></span>Design Frontend — draft, xem ở đây</span>
+    </div>
+  </header>
+
+  <!-- SCREEN 1: Device Detail — có conflict, accordion mở -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>1. Device Detail — có conflict (banner vàng), "Xem tất cả nguồn" đang mở</h2>
+      <span class="ref">F9-frontend.md §2/§4 · AppliedPoliciesBlock.vue</span>
+    </div>
+    <div class="window">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/devices/42</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item"><span class="ic">▣</span> Groups</div>
+          <div class="nav-item"><span class="ic">▣</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <a href="#" class="detail-back">◀ Quay lại danh sách</a>
+            <div class="detail-header">
+              <div>
+                <div class="id-row">IPHONE-001 <span class="badge active">active</span></div>
+                <div class="meta-row"><span>iPhone của Alice</span><span>ios</span><span>17.4.1</span><span>Last seen: 2026-09-17 09:10</span></div>
+              </div>
+              <button class="btn btn-secondary">Sửa</button>
+            </div>
+            <div class="detail-grid">
+              <div class="detail-block">
+                <h4>Groups đang thuộc</h4>
+                <ul class="group-link-list">
+                  <li><a href="#">Sales Laptops (Group A)</a><button class="btn btn-secondary btn-sm" title="Gỡ khỏi group">×</button></li>
+                  <li><a href="#">Legacy Devices (Group B)</a><button class="btn btn-secondary btn-sm" title="Gỡ khỏi group">×</button></li>
+                </ul>
+                <button class="btn btn-secondary" style="width:100%; justify-content:center; margin-top:10px">+ Thêm vào group</button>
+              </div>
+
+              <!-- Khối F9 — Policy đang áp dụng: SUCCESS + CONFLICT -->
+              <div class="detail-block">
+                <h4>Policy đang áp dụng</h4>
+
+                <div class="warning-banner" data-testid="device-detail-policies-conflict-banner" style="margin-bottom:12px">
+                  <span aria-hidden="true">⚠</span>
+                  <span>Đã tự động chọn policy ưu tiên cao hơn cho 1 loại đang xung đột.</span>
+                </div>
+
+                <div class="table-wrap">
+                  <table class="data-table" data-testid="device-detail-policies-table">
+                    <thead>
+                      <tr><th>Name</th><th>Type</th><th>Nguồn</th><th>Trạng thái</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr data-testid="device-detail-policies-row">
+                        <td>Wifi New</td>
+                        <td class="mono">wifi</td>
+                        <td>
+                          <div class="source-cell">
+                            <span>
+                              <span class="chip" data-testid="device-detail-policies-source">Từ group: Group B</span>
+                              <span class="conflict-flag" data-testid="device-detail-policies-conflict-flag" title="Đang có xung đột giữa các policy cùng type này — xem 'Xem tất cả nguồn'.">⚠</span>
+                            </span>
+                            <button type="button" class="link-btn" data-testid="device-detail-policies-view-sources" aria-expanded="true">Ẩn nguồn (3)</button>
+                          </div>
+                        </td>
+                        <td><span class="badge active">active</span></td>
+                      </tr>
+                      <tr class="candidates-row" data-testid="device-detail-policies-candidates">
+                        <td colspan="4">
+                          <ul class="candidate-list">
+                            <li class="is-winner" data-testid="device-detail-policies-candidate-row">
+                              <span class="candidate-name">Wifi New</span>
+                              <span class="chip">Từ group: Group B</span>
+                              <span class="badge active" style="margin-left:auto">Đang áp dụng</span>
+                            </li>
+                            <li data-testid="device-detail-policies-candidate-row">
+                              <span class="candidate-name">Wifi Old</span>
+                              <span class="chip">Từ group: Group A</span>
+                              <span class="candidate-reason">Ưu tiên thấp hơn</span>
+                            </li>
+                            <li data-testid="device-detail-policies-candidate-row">
+                              <span class="candidate-name">Wifi Legacy</span>
+                              <span class="chip">Từ group: Legacy Devices</span>
+                              <span class="candidate-reason">Policy đang inactive, không được tính hiệu lực</span>
+                            </li>
+                          </ul>
+                        </td>
+                      </tr>
+                      <tr data-testid="device-detail-policies-row">
+                        <td>Password Rule</td>
+                        <td class="mono">password</td>
+                        <td><span class="chip" data-testid="device-detail-policies-source">Trực tiếp</span></td>
+                        <td><span class="badge active">active</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Banner conflict (literal khoá cứng): "Đã tự động chọn policy ưu tiên cao hơn cho N loại đang xung đột." — N = số <code>type</code> có <code>conflict: true</code> (F9-frontend.md §2, R8: banner độc lập với việc BE đã tự resolve xong).</p>
+      <p class="note">Dòng "wifi" minh hoạ Scenario "Popover Xem tất cả nguồn liệt kê đầy đủ ứng viên kèm lý do loại" (SoT §11, OQ-4): winner (badge xanh "Đang áp dụng"), loser active ("Ưu tiên thấp hơn"), candidate inactive ("Policy đang inactive, không được tính hiệu lực") — 2 literal cố định từ <code>F9-api.md</code> §3, hiển thị thẳng không dịch lại.</p>
+      <p class="note">Dòng "password" chỉ có 1 candidate (gán trực tiếp, không group) → <strong>không</strong> hiện link "Xem tất cả nguồn" (F9-frontend.md §5, quyết định lệch nhẹ so với UI_UX_design.md §5 — tránh link không có gì để xem thêm).</p>
+      <p class="note">Accordion mở <strong>inline ngay trong bảng</strong> (thêm 1 <code>&lt;tr&gt;</code>), không phải popover nổi <code>position: absolute</code> — tránh rủi ro bị <code>.table-wrap{overflow-x:auto}</code> cắt theo trục dọc mà <code>ActionsMenu</code> (F4) đã tự ghi nhận (F9-frontend.md §0.1).</p>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: Device Detail — không conflict -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>2. Device Detail — không conflict, cùng 1 policy qua 2 group (A13)</h2>
+      <span class="ref">F9-frontend.md §2 · Scenario 4/13 (SoT §11)</span>
+    </div>
+    <div class="window">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/devices/58</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item active"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item"><span class="ic">▣</span> Groups</div>
+          <div class="nav-item"><span class="ic">▣</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <a href="#" class="detail-back">◀ Quay lại danh sách</a>
+            <div class="detail-header">
+              <div>
+                <div class="id-row">PIXEL-042 <span class="badge active">active</span></div>
+                <div class="meta-row"><span>Pixel văn phòng</span><span>android</span><span>14</span><span>Last seen: 2026-09-16 18:42</span></div>
+              </div>
+              <button class="btn btn-secondary">Sửa</button>
+            </div>
+            <div class="detail-grid">
+              <div class="detail-block">
+                <h4>Groups đang thuộc</h4>
+                <ul class="group-link-list">
+                  <li><a href="#">Group A</a><button class="btn btn-secondary btn-sm" title="Gỡ khỏi group">×</button></li>
+                  <li><a href="#">Group B</a><button class="btn btn-secondary btn-sm" title="Gỡ khỏi group">×</button></li>
+                </ul>
+                <button class="btn btn-secondary" style="width:100%; justify-content:center; margin-top:10px">+ Thêm vào group</button>
+              </div>
+
+              <!-- Khối F9 — SUCCESS, không conflict -->
+              <div class="detail-block">
+                <h4>Policy đang áp dụng</h4>
+                <div class="table-wrap">
+                  <table class="data-table" data-testid="device-detail-policies-table">
+                    <thead>
+                      <tr><th>Name</th><th>Type</th><th>Nguồn</th><th>Trạng thái</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr data-testid="device-detail-policies-row">
+                        <td>Security Baseline</td>
+                        <td class="mono">security</td>
+                        <td>
+                          <div class="source-cell">
+                            <span class="chip" data-testid="device-detail-policies-source">Từ group: Group A</span>
+                            <button type="button" class="link-btn" data-testid="device-detail-policies-view-sources" aria-expanded="false">Xem tất cả nguồn (2)</button>
+                          </div>
+                        </td>
+                        <td><span class="badge active">active</span></td>
+                      </tr>
+                      <tr data-testid="device-detail-policies-row">
+                        <td>Password Rule</td>
+                        <td class="mono">password</td>
+                        <td><span class="chip" data-testid="device-detail-policies-source">Từ group: Group B</span></td>
+                        <td><span class="badge active">active</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">"Security Baseline" được gán qua <strong>cả Group A và Group B</strong> (cùng 1 <code>policy_id</code>, A13/OQ-3) → badge chính hiện <em>group_id nhỏ nhất</em> ("Group A"), không banner conflict (chỉ 1 policy tham gia, không phải 2 bản ghi khác nhau) — nhưng <code>candidates.length === 2</code> nên link "Xem tất cả nguồn (2)" vẫn hiện để liệt kê đủ cả 2 group đang đóng góp.</p>
+      <p class="note">2 <code>type</code> khác nhau (security/password) không cạnh tranh nhau — mỗi dòng độc lập (Scenario 4).</p>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: 3 trạng thái tải độc lập của riêng khối Policy -->
+  <section class="screen">
+    <div class="screen-label">
+      <h2>3. Khối "Policy đang áp dụng" — loading / empty / error (độc lập với Header/Groups)</h2>
+      <span class="ref">F9-frontend.md §3.1/§4 · OQ-2</span>
+    </div>
+    <div class="state-gallery">
+      <div class="state-card">
+        <h3>Loading</h3>
+        <span class="testid">data-testid="device-detail-policies-loading"</span>
+        <div class="policies-skeleton">
+          <div class="skeleton-row"><span class="skeleton-cell" style="width:38%"></span><span class="skeleton-cell" style="width:18%"></span><span class="skeleton-cell" style="width:26%"></span></div>
+          <div class="skeleton-row"><span class="skeleton-cell" style="width:32%"></span><span class="skeleton-cell" style="width:18%"></span><span class="skeleton-cell" style="width:22%"></span></div>
+        </div>
+        <p style="font-size:12px; color:var(--text-faint); margin:0">Header/Groups bên cạnh đã render xong từ lâu — khối này có thể vẫn đang tải (F9-frontend.md §3.1: chi phí resolution khác hẳn chi phí Header).</p>
+      </div>
+
+      <div class="state-card">
+        <h3>Empty</h3>
+        <span class="testid">data-testid="device-detail-policies-empty"</span>
+        <div class="placeholder-box">
+          <span class="ic" aria-hidden="true">▣</span>
+          <span>Chưa có policy nào áp dụng.</span>
+        </div>
+      </div>
+
+      <div class="state-card">
+        <h3>Error</h3>
+        <span class="testid">data-testid="device-detail-policies-error"</span>
+        <div class="error-banner" role="alert">
+          <span aria-hidden="true">⚠</span>
+          <span class="banner-body">
+            <span>Không tải được policy đang áp dụng.</span>
+            <button type="button" class="btn btn-secondary" data-testid="retry-button">Thử lại</button>
+          </span>
+        </div>
+        <p style="font-size:12px; color:var(--text-faint); margin:0">A20: lỗi ở khối này KHÔNG kéo sập Header/Groups — 2 request hoàn toàn độc lập.</p>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Cả 3 trạng thái trên chỉ thay nội dung <strong>bên trong</strong> <code>.detail-block</code> "Policy đang áp dụng" — Header và khối "Groups đang thuộc" ở cột bên cạnh không đổi, không re-render, không mất dữ liệu đã có.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Nguồn: <code>docs/design/F9-frontend.md</code>, <code>docs/design/F9-api.md</code>, <code>UI_UX_design.md</code> §5</span>
+    <span>Chưa nối API thật</span>
+  </footer>
+</div>
