@@ -17,6 +17,10 @@ class Organization < ApplicationRecord
   # Same reasoning again for F7 (docs/design/F7-db.md §1) — no Organization
   # delete flow exists, so no cascade decision is due here either.
   has_many :policies
+  # Same reasoning again for F8 (docs/design/F8-db.md §1) — no Organization
+  # delete flow exists, so no cascade decision is due here either.
+  has_many :policy_assignments
+  has_many :policy_assignment_jobs
 
   validates :name, presence: true
 end

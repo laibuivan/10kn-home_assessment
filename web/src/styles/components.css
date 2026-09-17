@@ -208,6 +208,9 @@ body {
 /* ---------- Group Detail tabs (F6) ---------- */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 16px 0; }
 .tab-item { padding: 8px 4px; font-size: 13.5px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; }
+/* A tab is often a real <button> (F8 onward) — reset the default button
+   chrome so it reads identically to the plain <span> label F5/F6 used. */
+button.tab-item { background: none; border: none; border-bottom: 2px solid transparent; font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; }
 .tab-item.active { color: var(--text); border-color: var(--accent); }
 /* Same "exists but not yet built" treatment as .nav-item.future — a label, never a button (F6-frontend.md OQ-FE-2). */
 .tab-item.future { opacity: 0.4; cursor: default; }
@@ -237,3 +240,14 @@ body {
 .group-link-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13.5px; }
 .group-link-list a { color: var(--accent); text-decoration: none; }
 .group-link-list a:hover { text-decoration: underline; }
+
+/* ---------- AsyncJobBanner stack (F8) — global, mounted once in AppShell ---------- */
+.job-banner-stack { position: fixed; right: 20px; bottom: 20px; z-index: 50; display: flex; flex-direction: column; gap: 10px; max-width: 340px; }
+.job-banner { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: 0 8px 20px rgba(15,23,33,0.14); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+.job-banner.status-done { border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+.job-banner.status-failed { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.job-banner .job-banner-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.job-banner .job-banner-detail { color: var(--text-muted); font-size: 12.5px; }
+
+/* ---------- Policy Detail — configuration code block (F8) ---------- */
+.code-block { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; }

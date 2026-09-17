@@ -50,6 +50,19 @@ class GroupPolicy < ApplicationPolicy
     true
   end
 
+  # F8 — GET/POST /groups/:id/policy_assignments, DELETE
+  # /groups/:id/policy_assignments/:policy_id, GET
+  # /groups/:id/policy_assignment_jobs. All of these act ON the group itself
+  # (docs/design/F8-api.md §1) — no roles, same reasoning as add_devices?/
+  # remove_device? above.
+  def assign_policy?
+    true
+  end
+
+  def unassign_policy?
+    true
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       # Deliberately goes through the association, never Group.where(...) —

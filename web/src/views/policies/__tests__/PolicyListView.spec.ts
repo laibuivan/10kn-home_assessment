@@ -19,6 +19,7 @@ function policy(overrides: Partial<Policy> = {}): Policy {
     type: 'wifi',
     configuration: { ssid: 'corp' },
     status: 'active',
+    assignments_count: 0,
     created_at: '2026-09-17T08:00:00.000Z',
     updated_at: '2026-09-17T08:00:00.000Z',
     ...overrides,
@@ -50,6 +51,7 @@ function buildRouter(): Router {
       { path: '/login', name: 'login', component: { template: '<div />' } },
       { path: '/devices', name: 'devices', component: { template: '<div />' } },
       { path: '/policies', name: 'policies', component: PolicyListView },
+      { path: '/policies/:id', name: 'policy-detail', component: { template: '<div />' } },
     ],
   })
 }
@@ -115,28 +117,29 @@ describe('PolicyListView', () => {
     expect(fetchPolicyList).toHaveBeenCalledWith({ q: undefined, status: undefined, page: 1 })
   })
 
-  it('renders Name/Type/Status columns, no "Số nơi đang gán" column (S31)', async () => {
+  it('renders Name/Type/Status/Số nơi đang gán columns (F8, F7 OQ-6 carry-over)', async () => {
     vi.mocked(fetchPolicyList).mockResolvedValue(
-      listResponse([policy({ name: 'Wifi mặc định', type: 'wifi' })]),
+      listResponse([policy({ name: 'Wifi mặc định', type: 'wifi', assignments_count: 4 })]),
     )
 
     const { wrapper } = await mountView('/policies')
 
     expect(wrapper.find('[data-field=name]').text()).toBe('Wifi mặc định')
     expect(wrapper.find('[data-field=type]').text()).toBe('wifi')
+    expect(wrapper.find('[data-field=assignments_count]').text()).toBe('4')
     expect(wrapper.find('th').exists()).toBe(true)
     const headers = wrapper.findAll('th').map((h) => h.text())
-    expect(headers).toEqual(['Name', 'Type', 'Status', ''])
+    expect(headers).toEqual(['Name', 'Type', 'Status', 'Số nơi đang gán', ''])
   })
 
-  it('does not make the table row clickable (no detail page, OQ-7)', async () => {
-    vi.mocked(fetchPolicyList).mockResolvedValue(listResponse([policy()]))
+  it('makes the table row clickable, navigating to the detail page (F8, F7 OQ-7 carry-over)', async () => {
+    vi.mocked(fetchPolicyList).mockResolvedValue(listResponse([policy({ id: 5 })]))
 
     const { wrapper, router } = await mountView('/policies')
     await wrapper.find('[data-field=name]').trigger('click')
     await flushPromises()
 
-    expect(router.currentRoute.value.path).toBe('/policies')
+    expect(router.currentRoute.value.path).toBe('/policies/5')
   })
 
   describe('search', () => {
@@ -269,15 +272,15 @@ describe('PolicyListView', () => {
     expect(wrapper.find('[data-testid=error-banner]').exists()).toBe(false)
   })
 
-  describe('row actions menu (S30)', () => {
-    it('offers exactly "Sửa" and the toggle label, no Xóa/Xem chi tiết', async () => {
+  describe('row actions menu (F8 reopens "Xem chi tiết", A28/A29)', () => {
+    it('offers "Sửa", the toggle label, then "Xem chi tiết" — 3 items, in that order', async () => {
       vi.mocked(fetchPolicyList).mockResolvedValue(listResponse([policy({ status: 'active' })]))
 
       const { wrapper } = await mountView('/policies')
       await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
 
       const items = wrapper.findAll('.dropdown-item')
-      expect(items.map((item) => item.text())).toEqual(['Sửa', 'Vô hiệu hoá'])
+      expect(items.map((item) => item.text())).toEqual(['Sửa', 'Vô hiệu hoá', 'Xem chi tiết'])
     })
 
     it('labels the toggle "Kích hoạt" for an inactive policy', async () => {
@@ -287,7 +290,18 @@ describe('PolicyListView', () => {
       await wrapper.find('[data-testid=actions-menu-trigger]').trigger('click')
 
       const items = wrapper.findAll('.dropdown-item')
-      expect(items.map((item) => item.text())).toEqual(['Sửa', 'Kích hoạt'])
+      expect(items.map((item) => item.text())).toEqual(['Sửa', 'Kích hoạt', 'Xem chi tiết'])
+    })
+
+    it('"Xem chi tiết" navigates to the detail page without opening the edit modal', async () => {
+      vi.mocked(fetchPolicyList).mockResolvedValue(listResponse([policy({ id: 8 })]))
+
+      const { wrapper, router } = await mountView('/policies')
+      await rowAction(wrapper, 'policy-action-view')
+      await flushPromises()
+
+      expect(router.currentRoute.value.path).toBe('/policies/8')
+      expect(wrapper.find('[data-testid=policy-form-modal]').exists()).toBe(false)
     })
   })
 
@@ -424,6 +438,65 @@ describe('PolicyListView', () => {
         'Không cập nhật được trạng thái, vui lòng thử lại.',
       )
       expect(wrapper.find('[data-field=status]').text()).toBe('active')
+    })
+  })
+
+  describe('deactivate confirm — F8 carry-over (F7 OQ-9), §2.1.1', () => {
+    it('deactivating with assignments_count > 0 asks for confirmation instead of PATCHing directly (A21)', async () => {
+      vi.mocked(fetchPolicyList).mockResolvedValue(
+        listResponse([policy({ id: 5, status: 'active', assignments_count: 7 })]),
+      )
+
+      const { wrapper } = await mountView('/policies')
+      await rowAction(wrapper, 'policy-action-toggle-status')
+
+      expect(updatePolicy).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').text()).toContain(
+        'Policy đang được gán cho 7 group/device.',
+      )
+    })
+
+    it('PATCHes only after the confirm is accepted', async () => {
+      vi.mocked(fetchPolicyList).mockResolvedValue(
+        listResponse([policy({ id: 5, status: 'active', assignments_count: 7 })]),
+      )
+      vi.mocked(updatePolicy).mockResolvedValueOnce({ policy: policy({ id: 5, status: 'inactive' }) })
+
+      const { wrapper } = await mountView('/policies')
+      await rowAction(wrapper, 'policy-action-toggle-status')
+      await wrapper.find('[data-testid=policy-deactivate-confirm-confirm]').trigger('click')
+      await flushPromises()
+
+      expect(updatePolicy).toHaveBeenCalledWith(5, { status: 'inactive' })
+      expect(wrapper.find('[data-testid=toast]').text()).toContain('Đã vô hiệu hoá policy')
+    })
+
+    it('cancelling the confirm leaves the policy untouched', async () => {
+      vi.mocked(fetchPolicyList).mockResolvedValue(
+        listResponse([policy({ id: 5, status: 'active', assignments_count: 7 })]),
+      )
+
+      const { wrapper } = await mountView('/policies')
+      await rowAction(wrapper, 'policy-action-toggle-status')
+      await wrapper.find('[data-testid=policy-deactivate-confirm-cancel]').trigger('click')
+      await flushPromises()
+
+      expect(updatePolicy).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').exists()).toBe(false)
+    })
+
+    it('activating (inactive -> active) never confirms, regardless of assignments_count (A22)', async () => {
+      vi.mocked(fetchPolicyList).mockResolvedValue(
+        listResponse([policy({ id: 5, status: 'inactive', assignments_count: 9 })]),
+      )
+      vi.mocked(updatePolicy).mockResolvedValueOnce({ policy: policy({ id: 5, status: 'active' }) })
+
+      const { wrapper } = await mountView('/policies')
+      await rowAction(wrapper, 'policy-action-toggle-status')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid=policy-deactivate-confirm]').exists()).toBe(false)
+      expect(updatePolicy).toHaveBeenCalledWith(5, { status: 'active' })
     })
   })
 })

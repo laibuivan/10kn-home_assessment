@@ -14,7 +14,7 @@ biết scope + dependency, rồi đọc `PRD.md` để lấy chi tiết nghiệp
 | F5 | Group CRUD (list/create/edit/xóa an toàn) — **Done** | Groups | F0 | [approved](sot/F5-group-crud.md) | [DB](design/F5-db.md) [API](design/F5-api.md) [Frontend](design/F5-frontend.md) approved | [done](plan/F5-group-crud.md) |
 | F6 | Group membership tại scale (thêm/gỡ device, chịu 10.000 device, idempotent) — **Done** | Groups (chi tiết) | F5, F3 | [approved](sot/F6-group-membership.md) | [DB](design/F6-db.md) [API](design/F6-api.md) [Frontend](design/F6-frontend.md) approved | [done](plan/F6-group-membership.md) |
 | F7 | Policy CRUD (list/create/edit, status) — **Done** | Policies | F0 | [approved](sot/F7-policy-crud.md) | [DB](design/F7-db.md) [API](design/F7-api.md) [Frontend](design/F7-frontend.md) approved | [done](plan/F7-policy-crud.md) |
-| F8 | Policy assignment (gán Group và/hoặc Device; chặn inactive/chéo org; chịu group lớn, có trạng thái running/done/failed) | Policies (gán), Groups (chi tiết) | F6, F7, F4 | — | — | — |
+| F8 | Policy assignment (gán Group và/hoặc Device; chặn inactive/chéo org; chịu group lớn, có trạng thái running/done/failed) — **Done** | Policies (gán), Groups (chi tiết) | F6, F7, F4 | [approved](sot/F8-policy-assignment.md) | [DB](design/F8-db.md) [API](design/F8-api.md) [Frontend](design/F8-frontend.md) approved | [done](plan/F8-policy-assignment.md) |
 | F9 | Policy resolution engine (policy đang áp dụng trên Device, xử lý conflict cùng `type`) | Device detail (policy đang áp dụng) | F8 | — | — | — |
 
 Cột SoT/Design/Plan cập nhật link file (`docs/sot/F1-login.md` ...) và trạng

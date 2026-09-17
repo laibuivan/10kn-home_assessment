@@ -47,7 +47,15 @@ Rails.application.configure do
   # config.cache_store = :mem_cache_store
 
   # Replace the default in-process and non-durable queuing backend for Active Job.
-  # config.active_job.queue_adapter = :resque
+  #
+  # No `config.solid_queue.connects_to` — deliberately kept on the ONE
+  # Postgres database the whole app already uses (docker-compose.yml has a
+  # single `db` service), not a second "queue" database. The installer
+  # defaults to a separate database; docs/design/F8-db.md §2.1 mục 5 chọn
+  # không tách để đơn giản hoá vận hành cho phạm vi bài test — nên
+  # `solid_queue_*` (migrated in db/migrate/20260917044757_create_solid_queue_tables.rb)
+  # lives in the same schema.rb as every business table.
+  config.active_job.queue_adapter = :solid_queue
 
   # Ignore bad email addresses and do not raise email delivery errors.
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.

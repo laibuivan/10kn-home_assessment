@@ -2,11 +2,14 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useJobsStore } from '../stores/jobs'
 import ToastContainer from './ToastContainer.vue'
+import AsyncJobBanner from './AsyncJobBanner.vue'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const jobsStore = useJobsStore()
 const menuOpen = ref(false)
 
 /**
@@ -102,4 +105,17 @@ function logout() {
   </div>
 
   <ToastContainer />
+
+  <!-- F8 — mounted once here (not per-view): a job can be started from
+       either Group Detail or Policy Detail, and must keep being tracked
+       across a route change between the two (F8-frontend.md §2.3). -->
+  <div class="job-banner-stack" data-testid="job-banner-stack">
+    <AsyncJobBanner
+      v-for="job in jobsStore.jobs"
+      :key="job.id"
+      :job="job"
+      @retry="jobsStore.retry(job)"
+      @dismiss="jobsStore.dismiss(job.id)"
+    />
+  </div>
 </template>

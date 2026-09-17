@@ -43,8 +43,20 @@ module Api
         total_count = scope.count
         records = scope.offset((page - 1) * per_page).limit(per_page)
 
+        # ONE grouped COUNT for the whole page (F8 — docs/design/F8-api.md
+        # §2.1), never `policy.policy_assignments.count` inside the map —
+        # that would be an N+1 that grows with per_page (same trap as
+        # devices_count in GroupsController#index). A policy with zero rows
+        # in policy_assignments simply doesn't appear in the hash, hence
+        # fetch(id, 0) — A32.
+        assignments_counts = PolicyAssignment
+          .where(organization_id: current_organization.id, policy_id: records.map(&:id))
+          .group(:policy_id).count
+
         render json: {
-          policies: records.map { |policy| serialize_policy(policy) },
+          policies: records.map do |policy|
+            serialize_policy(policy, assignments_count: assignments_counts.fetch(policy.id, 0))
+          end,
           meta: {
             current_page: page,
             per_page: per_page,
@@ -52,6 +64,19 @@ module Api
             total_pages: total_pages(total_count)
           }
         }
+      end
+
+      # GET /api/v1/policies/:id — docs/design/F8-api.md §2.2 (F7 OQ-7).
+      #
+      # Found through the Pundit scope, so a cross-org id, a nonexistent id
+      # or a malformed id all raise ActiveRecord::RecordNotFound (rescued
+      # globally into a 404 — never a 403) before authorize even runs (S26,
+      # A27).
+      def show
+        policy = policy_scope(Policy).find(params[:id])
+        authorize policy
+
+        render json: { policy: serialize_policy(policy) }
       end
 
       # POST /api/v1/policies — docs/design/F7-api.md §2.2.
@@ -160,15 +185,21 @@ module Api
         render_validation_errors(name: [ Policy::NAME_TAKEN_MESSAGE ])
       end
 
-      # Exactly 7 fields, no organization_id (client only ever has one), no
-      # assignments_count (SoT OQ-6 — no policy_assignments table at F7).
-      def serialize_policy(policy)
+      # 8 fields since F8 — `assignments_count` pays F7's OQ-6 carry-over
+      # debt (docs/design/F8-api.md §2.3). Still no organization_id (client
+      # only ever has one). The default argument is only evaluated when the
+      # caller omits it — #index always passes a value from its one grouped
+      # COUNT above, so `policy.policy_assignments.count` below only runs
+      # for the single-record responses (show/create/update), one COUNT
+      # each — same pattern as GroupsController#serialize_group.
+      def serialize_policy(policy, assignments_count: policy.policy_assignments.count)
         {
           id: policy.id,
           name: policy.name,
           type: policy.type,
           configuration: policy.configuration,
           status: policy.status,
+          assignments_count: assignments_count,
           created_at: policy.created_at,
           updated_at: policy.updated_at
         }

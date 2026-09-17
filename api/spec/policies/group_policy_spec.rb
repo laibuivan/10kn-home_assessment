@@ -60,6 +60,24 @@ RSpec.describe GroupPolicy, type: :policy do
     end
   end
 
+  # F8 — same reasoning as #show?/#add_devices? above: authorized explicitly
+  # by name at the call site (docs/design/F8-api.md §1).
+  describe "#assign_policy?" do
+    it "allows any active user of an organization to assign a policy to its groups" do
+      group = create(:group, organization: organization)
+
+      expect(described_class.new(user, group).assign_policy?).to be(true)
+    end
+  end
+
+  describe "#unassign_policy?" do
+    it "allows any active user of an organization to unassign a policy from its groups" do
+      group = create(:group, organization: organization)
+
+      expect(described_class.new(user, group).unassign_policy?).to be(true)
+    end
+  end
+
   describe "Scope" do
     subject(:resolved) { described_class::Scope.new(user, Group).resolve }
 

@@ -6,6 +6,7 @@ import DeviceDetailView from '../views/devices/DeviceDetailView.vue'
 import GroupListView from '../views/groups/GroupListView.vue'
 import GroupDetailView from '../views/groups/GroupDetailView.vue'
 import PolicyListView from '../views/policies/PolicyListView.vue'
+import PolicyDetailView from '../views/policies/PolicyDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -18,9 +19,9 @@ const router = createRouter({
     // Added at F6 — same shape as `device-detail`: `props: true` is declared
     // for consistency, but the component reads `route.params.id` itself.
     { path: '/groups/:id', name: 'group-detail', component: GroupDetailView, props: true },
-    // Added at F7 — no `/policies/:id` (SoT OQ-7): no `GET /policies/:id`
-    // route exists, and no detail page is built for it.
     { path: '/policies', name: 'policies', component: PolicyListView },
+    // Added at F8 (F7 OQ-7 carry-over) — same shape as `group-detail`.
+    { path: '/policies/:id', name: 'policy-detail', component: PolicyDetailView, props: true },
   ],
 })
 

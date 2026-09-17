@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import FormModal from './FormModal.vue'
+import ConfirmModal from './ConfirmModal.vue'
 import { usePoliciesStore } from '../stores/policies'
 import { extractFormErrors } from '../utils/apiError'
+import { DEACTIVATE_WARNING } from '../utils/policyMessages'
 import type { Policy, PolicyCreatePayload, PolicyStatus, PolicyUpdatePayload } from '../types/policy'
 
 /**
@@ -155,15 +157,24 @@ function clientValidate(): Record<string, string[]> {
   return errors
 }
 
-async function onSubmit() {
-  if (submitting.value) return
+/**
+ * F8 — deactivate-with-assignments confirm (docs/design/F8-frontend.md §5,
+ * same rule as `PolicyListView.toggleStatus`). Only `active -> inactive`
+ * with a real `assignments_count > 0` needs a second look; activating
+ * (`inactive -> active`) never does — there is nothing to warn about.
+ */
+const pendingDeactivateConfirm = ref(false)
 
-  const clientErrors = clientValidate()
-  if (Object.keys(clientErrors).length > 0) {
-    fieldErrors.value = clientErrors
-    return
-  }
+function needsDeactivateConfirm(): boolean {
+  return (
+    props.mode === 'edit' &&
+    form.status === 'inactive' &&
+    props.policy!.status === 'active' &&
+    props.policy!.assignments_count > 0
+  )
+}
 
+async function performSubmit() {
   const { value: configuration } = parseConfiguration()
 
   submitting.value = true
@@ -197,6 +208,28 @@ async function onSubmit() {
   } finally {
     submitting.value = false
   }
+}
+
+async function onSubmit() {
+  if (submitting.value) return
+
+  const clientErrors = clientValidate()
+  if (Object.keys(clientErrors).length > 0) {
+    fieldErrors.value = clientErrors
+    return
+  }
+
+  if (needsDeactivateConfirm()) {
+    pendingDeactivateConfirm.value = true
+    return
+  }
+
+  await performSubmit()
+}
+
+async function confirmDeactivate() {
+  pendingDeactivateConfirm.value = false
+  await performSubmit()
 }
 
 function onCancel() {
@@ -295,4 +328,16 @@ function onCancel() {
       </span>
     </div>
   </FormModal>
+
+  <ConfirmModal
+    v-if="pendingDeactivateConfirm && policy"
+    title="Chuyển Policy sang inactive?"
+    :message="DEACTIVATE_WARNING(policy.assignments_count)"
+    confirm-label="Chuyển sang inactive"
+    :on-confirm="confirmDeactivate"
+    test-id="policy-deactivate-confirm"
+    confirm-test-id="policy-deactivate-confirm-confirm"
+    cancel-test-id="policy-deactivate-confirm-cancel"
+    @cancel="pendingDeactivateConfirm = false"
+  />
 </template>

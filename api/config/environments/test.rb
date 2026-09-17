@@ -56,4 +56,12 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # F8 — `:test`, not `:solid_queue` (docs/design/F8-db.md §2.1 mục 4,
+  # plan Rủi ro #2): request specs assert jobs got enqueued with the right
+  # args and, via `perform_enqueued_jobs`, run them synchronously in-process
+  # — no real worker process needs to be running for the test suite, and
+  # nothing here should ever be "conveniently" swapped back to :solid_queue
+  # while debugging, or async specs go flaky.
+  config.active_job.queue_adapter = :test
 end

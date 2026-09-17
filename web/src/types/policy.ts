@@ -15,11 +15,19 @@ export interface Policy {
   /** Always one JSON object (jsonb) — never array/scalar/null (F7-db.md §1). */
   configuration: Record<string, unknown>
   status: PolicyStatus
+  /**
+   * NEW at F8 (SoT F7 OQ-6 carry-over) — always present in every response
+   * (`index`/`show`/`create`/`update`, F8-api.md §2.3): the total number of
+   * `policy_assignments` rows for this policy (Group + Device, counted as
+   * rows — never de-duplicated to "devices affected", A23). Never
+   * incremented/decremented on the client (UI_UX_design.md §0.3) — every
+   * mutation refetches and reads the real count back.
+   */
+  assignments_count: number
   created_at: string
   updated_at: string
 }
-// No `organization_id` (F7-api.md §2.7). No `assignments_count` (SoT
-// OQ-6 — carry-over obligation for F8, not to be invented early here).
+// No `organization_id` (F7-api.md §2.7).
 
 export interface PolicyListResponse {
   policies: Policy[]

@@ -17,12 +17,29 @@ Rails.application.routes.draw do
           get "devices", to: "group_devices#index"
           post "devices", to: "group_devices#create"
           delete "devices/:device_id", to: "group_devices#destroy"
+
+          # F8 — docs/design/F8-api.md §1.
+          get "policy_assignments", to: "group_policy_assignments#index"
+          post "policy_assignments", to: "group_policy_assignments#create"
+          delete "policy_assignments/:policy_id", to: "group_policy_assignments#destroy"
+          get "policy_assignment_jobs", to: "group_policy_assignment_jobs#index"
         end
       end
-      # No :show/:destroy on purpose (SoT F7 OQ-2/OQ-7) — see
-      # docs/design/F7-api.md §2.5 for what GET/DELETE :id do instead
-      # (routing 404, not a controller action).
-      resources :policies, only: [ :index, :create, :update ]
+      # `:show` MỞ LẠI ở đây (F8 SoT §3 — F7 OQ-2/OQ-7 từng chốt không có).
+      # Toàn bộ phân tích "404 qua routing" ở docs/design/F7-api.md §2.5 hết
+      # hiệu lực từ đây, thay bằng 404 qua policy_scope(Policy).find như mọi
+      # action khác.
+      resources :policies, only: [ :index, :show, :create, :update ] do
+        member do
+          get "device_assignments", to: "policy_device_assignments#index"
+          post "device_assignments", to: "policy_device_assignments#create"
+          delete "device_assignments/:device_id", to: "policy_device_assignments#destroy"
+          get "group_assignments", to: "policy_group_assignments#index"
+        end
+      end
+      # Đứng độc lập — không nested dưới /groups hay /policies (SoT §3: poll
+      # bằng chính job_id, không cần biết trước group/policy nào).
+      resources :policy_assignment_jobs, only: [ :show ]
     end
   end
 end

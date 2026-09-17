@@ -1,0 +1,556 @@
+<title>F8 Policy Assignment Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* ============ TOKENS — khớp UI_UX_design.md §12, không tự đổi ============ */
+  :root {
+    --bg: #F5F7F9;
+    --surface: #FFFFFF;
+    --surface-2: #EDF1F4;
+    --border: #DCE2E8;
+    --text: #16202E;
+    --text-muted: #5B6779;
+    --text-faint: #8A93A3;
+    --accent: #146C7A;
+    --accent-strong: #0F535E;
+    --on-accent: #FFFFFF;
+    --success: #1E8E5A;
+    --success-soft: #E3F5EC;
+    --neutral-badge: #5B6779;
+    --neutral-badge-soft: #EAEDF1;
+    --danger: #B3432E;
+    --danger-soft: #FBEAE6;
+    --warning: #9C6B12;
+    --warning-soft: #FBF1DD;
+    --focus: #146C7A;
+
+    --sidebar-bg: #10222A;
+    --sidebar-bg-active: #16323C;
+    --sidebar-text: #E7EEF0;
+    --sidebar-text-muted: #8FA8AC;
+    --sidebar-border: #1D3038;
+
+    --font-display: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+      --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+      --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+      --success: #3FCB86; --success-soft: #10281E;
+      --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+      --danger: #E2796A; --danger-soft: #33191A;
+      --warning: #D9A441; --warning-soft: #2E2410;
+      --focus: #3FB6C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1420; --surface: #161E2B; --surface-2: #1D2635; --border: #2A3444;
+    --text: #E7ECF2; --text-muted: #9AA6B8; --text-faint: #6B7688;
+    --accent: #3FB6C4; --accent-strong: #6FCAD4; --on-accent: #06171A;
+    --success: #3FCB86; --success-soft: #10281E;
+    --neutral-badge: #9AA6B8; --neutral-badge-soft: #202A3A;
+    --danger: #E2796A; --danger-soft: #33191A;
+    --warning: #D9A441; --warning-soft: #2E2410;
+    --focus: #3FB6C4;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); line-height: 1.5; }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 40px 24px 96px; display: flex; flex-direction: column; gap: 40px; }
+
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(26px, 3.4vw, 34px); margin: 6px 0 8px; text-wrap: balance; }
+  .lede { color: var(--text-muted); max-width: 68ch; font-size: 15px; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 8px; border-radius: 100px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pill.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 35%, var(--border)); background: var(--success-soft); }
+  .pill.ok .dot { background: var(--success); }
+  .pill.pending .dot { background: var(--text-faint); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+  .badge.active { color: var(--success); background: var(--success-soft); }
+  .badge.inactive { color: var(--neutral-badge); background: var(--neutral-badge-soft); }
+  .badge.retired { color: var(--danger); background: var(--danger-soft); }
+
+  section.screen { display: flex; flex-direction: column; gap: 10px; }
+  .screen-label { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .screen-label h2 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+  .screen-label .ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); }
+  .window { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden; box-shadow: 0 1px 2px rgba(15,23,33,0.04); position: relative; }
+  .chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .chrome .dots { display: flex; gap: 6px; flex: none; }
+  .chrome .dots span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .chrome .addr { flex: 1; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; text-align: center; }
+
+  .btn { font: inherit; font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 8px 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { color: var(--on-accent); background: var(--accent); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-secondary { color: var(--text); background: var(--surface); border-color: var(--border); }
+  .btn-secondary:hover { background: var(--surface-2); }
+  .btn-danger { color: var(--on-accent); background: var(--danger); }
+  .btn:disabled { cursor: not-allowed; opacity: 0.5; }
+  .btn-sm { padding: 4px 9px; font-size: 12px; border-radius: 6px; }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, currentColor 35%, transparent); border-top-color: currentColor; animation: spin 0.7s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+  .field input, .field select, .field textarea { font: inherit; font-size: 14px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; width: 100%; }
+  .field input::placeholder { color: var(--text-faint); font-family: var(--font-mono); font-size: 13px; }
+  .field input:focus, .field select:focus { border-color: var(--accent); background: var(--surface); }
+
+  .error-banner, .banner { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; border-radius: 8px; padding: 9px 11px; }
+  .error-banner { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border)); }
+  .warning-banner { color: var(--warning); background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border)); }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  .data-table th { text-align: left; font-weight: 500; color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  .data-table td.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .data-table.is-clickable tr:hover td { background: var(--surface-2); cursor: pointer; }
+  .table-wrap { overflow-x: auto; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 12.5px; color: var(--text-muted); }
+  .pagination .steps { display: flex; gap: 4px; }
+  .pagination button { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+  .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+  .placeholder-box { width: 100%; max-width: 420px; border: 1.5px dashed var(--border); border-radius: 10px; padding: 30px 22px; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0 auto; }
+  .placeholder-box .ic { font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); }
+  .placeholder-box strong { color: var(--text); font-weight: 600; font-size: 14px; }
+  .placeholder-box span { font-size: 12.5px; line-height: 1.5; }
+
+  .modal-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--text) 35%, transparent); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 20; }
+  .modal { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 16px 40px rgba(15,23,33,0.2); }
+  .modal.modal-wide { max-width: 480px; }
+  .modal h3 { font-family: var(--font-display); font-size: 15.5px; font-weight: 600; margin: 0; }
+  .modal p { font-size: 13.5px; color: var(--text-muted); margin: 0; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .modal .modal-body { display: flex; flex-direction: column; gap: 12px; }
+
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-family: var(--font-mono); font-weight: 500; font-size: 13px; flex: none; }
+  .brand .name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: 0.01em; }
+
+  .shell { display: grid; grid-template-columns: 200px 1fr; min-height: 460px; }
+  .sidebar { background: var(--sidebar-bg); color: var(--sidebar-text); border-right: 1px solid var(--sidebar-border); padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .sidebar .brand { justify-content: flex-start; margin-bottom: 18px; padding: 0 6px; }
+  .sidebar .brand .name { color: var(--sidebar-text); }
+  .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; font-size: 13.5px; font-weight: 500; color: var(--sidebar-text-muted); }
+  .nav-item.active { background: var(--sidebar-bg-active); color: var(--sidebar-text); }
+  .nav-item .ic { width: 15px; text-align: center; font-family: var(--font-mono); font-size: 12px; }
+
+  .shell-main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface); position: relative; }
+  .org-pill { margin-right: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--text-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 100px; padding: 5px 11px 5px 9px; }
+  .org-pill .ic { color: var(--accent); }
+  .user-btn { font: inherit; font-size: 13px; color: var(--text); background: none; border: 1px solid transparent; border-radius: 7px; padding: 6px 8px; cursor: pointer; }
+  .shell-content { flex: 1; padding: 22px 24px 60px; position: relative; }
+
+  .list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .list-head h3 { font-family: var(--font-display); font-size: 16px; font-weight: 600; margin: 0; }
+
+  .notes { display: flex; flex-direction: column; gap: 6px; }
+  .note { font-size: 12.5px; color: var(--text-muted); display: flex; gap: 7px; align-items: flex-start; }
+  .note::before { content: "→"; color: var(--accent); flex: none; font-weight: 600; }
+
+  footer { border-top: 1px solid var(--border); padding-top: 20px; font-size: 12.5px; color: var(--text-faint); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer code, .lede code { font-family: var(--font-mono); background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  /* ============ MỚI ở F8 ============ */
+  .dropdown-trigger { font: inherit; font-size: 15px; line-height: 1; color: var(--text-muted); background: none; border: 1px solid transparent; border-radius: 6px; padding: 3px 8px; cursor: pointer; }
+  .dropdown-trigger:hover { background: var(--surface-2); color: var(--text); }
+  .dropdown-menu { display: none; position: absolute; right: 0; top: calc(100% + 4px); min-width: 170px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 20px rgba(15,23,33,0.12); padding: 5px; z-index: 6; text-align: left; }
+  .dropdown-menu.open { display: block; }
+  .dropdown-item { width: 100%; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: none; border: none; border-radius: 6px; padding: 7px 9px; cursor: pointer; }
+  .dropdown-item:hover { background: var(--surface-2); }
+
+  .detail-back { font-size: 13px; color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+  .detail-header .id-row { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 17px; font-weight: 600; }
+  .detail-header .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; color: var(--text-muted); align-items: center; }
+  .code-block { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; white-space: pre-wrap; word-break: break-word; margin: 14px 0 0; }
+  .code-block-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+  .code-block-row label { font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 16px 0; }
+  .tab-item { padding: 8px 4px; font-size: 13.5px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none; cursor: pointer; font-family: inherit; }
+  .tab-item.active { color: var(--text); border-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .inline-confirm { display: flex; align-items: center; gap: 6px; font-size: 12.5px; justify-content: flex-end; }
+  .inline-confirm span { color: var(--text-muted); }
+
+  /* AsyncJobBanner — normalement position:fixed toàn app qua AppShell; ở preview
+     ghim vào .window để minh hoạ đúng vị trí "góc dưới màn hình" trong khung mock. */
+  .job-banner-stack { position: absolute; right: 16px; bottom: 16px; z-index: 15; display: flex; flex-direction: column; gap: 10px; max-width: 300px; }
+  .job-banner { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: 0 8px 20px rgba(15,23,33,0.14); font-size: 12.5px; display: flex; flex-direction: column; gap: 8px; }
+  .job-banner .job-banner-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .job-banner.status-done { border-color: color-mix(in srgb, var(--success) 35%, var(--border)); }
+  .job-banner.status-done .job-banner-head { color: var(--success); }
+  .job-banner.status-failed { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+  .job-banner.status-failed .job-banner-head { color: var(--danger); }
+  .job-banner .job-banner-actions { display: flex; justify-content: flex-end; gap: 6px; }
+  .job-banner-caption { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); margin-top: -4px; }
+
+  .demo-hint { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); margin-top: 10px; }
+  .hidden { display: none !important; }
+</style>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">F8 · Frontend design preview</div>
+    <h1>Policy assignment — gán Group/Device, banner job async, Policy Detail</h1>
+    <p class="lede">Preview theo <code>docs/design/F8-frontend.md</code>: (a) Policy List mở lại cột "Số nơi đang gán" + action "Xem chi tiết", (b) Policy Detail 2 tab (Group có dữ liệu, Device rỗng), (c) Group Detail tab Policies với <code>AsyncJobBanner</code> đang ở trạng thái <code>running</code>.</p>
+    <div class="status-row">
+      <span class="pill ok"><span class="dot"></span>SoT F8 — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design DB F8 — approved</span>
+      <span class="pill ok"><span class="dot"></span>Design API F8 — approved</span>
+      <span class="pill pending"><span class="dot"></span>Design Frontend F8 — draft, xem ở đây</span>
+    </div>
+  </header>
+
+  <!-- ============ SCREEN 1 — Policy List ============ -->
+  <section class="screen" id="screen-policy-list">
+    <div class="screen-label">
+      <h2>1. Policy List — cột "Số nơi đang gán" + menu ⋯ mở lại "Xem chi tiết"</h2>
+      <span class="ref">F8-frontend.md §2.1 · PolicyListView.vue</span>
+    </div>
+    <div class="window" id="w1">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/policies</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item"><span class="ic">▣</span> Groups</div>
+          <div class="nav-item active"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn" type="button">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <div class="list-head">
+              <h3>Policies</h3>
+              <button class="btn btn-primary" type="button">+ Thêm Policy</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table is-clickable">
+                <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Số nơi đang gán</th><th></th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td>Security Baseline</td>
+                    <td class="mono">password</td>
+                    <td><span class="badge active">active</span></td>
+                    <td class="mono">5</td>
+                    <td class="actions-cell" style="position: relative; text-align: right">
+                      <button class="dropdown-trigger js-menu" type="button">⋯</button>
+                      <div class="dropdown-menu">
+                        <button class="dropdown-item" type="button">Sửa</button>
+                        <button class="dropdown-item" type="button">Vô hiệu hoá</button>
+                        <button class="dropdown-item js-goto-detail" type="button">Xem chi tiết</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>WiFi Corp</td>
+                    <td class="mono">wifi</td>
+                    <td><span class="badge active">active</span></td>
+                    <td class="mono">0</td>
+                    <td class="actions-cell" style="position: relative; text-align: right">
+                      <button class="dropdown-trigger js-menu" type="button">⋯</button>
+                      <div class="dropdown-menu">
+                        <button class="dropdown-item" type="button">Sửa</button>
+                        <button class="dropdown-item" type="button">Vô hiệu hoá</button>
+                        <button class="dropdown-item js-goto-detail" type="button">Xem chi tiết</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Old WiFi</td>
+                    <td class="mono">wifi</td>
+                    <td><span class="badge inactive">inactive</span></td>
+                    <td class="mono">0</td>
+                    <td class="actions-cell" style="position: relative; text-align: right">
+                      <button class="dropdown-trigger js-menu" type="button">⋯</button>
+                      <div class="dropdown-menu">
+                        <button class="dropdown-item" type="button">Kích hoạt</button>
+                        <button class="dropdown-item" type="button">Sửa</button>
+                        <button class="dropdown-item js-goto-detail" type="button">Xem chi tiết</button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pagination">
+              <span>Hiển thị 1–3 / 3</span>
+              <div class="steps"><button disabled>‹ Trước</button><span>Trang 1 / 1</span><button disabled>Sau ›</button></div>
+            </div>
+            <p class="demo-hint">Bấm thật được: "⋯" mở menu · "Xem chi tiết" (hoặc click cả dòng) cuộn xuống Screen 2 — Policy Detail của "Security Baseline". Deactivate với N&gt;0 sẽ mở ConfirmModal (xem ghi chú §2.1.1, không demo riêng ở đây — đã demo đủ ở F7 cho phần toggle không-confirm).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Cột "Số nơi đang gán" = <code>assignments_count</code> từ API, không FE tự đếm (A23/A32) — "Security Baseline" = 5 (2 group + 3 device trực tiếp), 2 policy còn lại = 0.</p>
+      <p class="note">Dòng bảng giờ clickable (điều hướng <code>/policies/:id</code>) — quyết định mới so với F7, đúng route đã có (F8-frontend.md §2.1).</p>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 2 — Policy Detail ============ -->
+  <section class="screen" id="screen-policy-detail">
+    <div class="screen-label">
+      <h2>2. Policy Detail — 2 tab (Group có dữ liệu · Device rỗng)</h2>
+      <span class="ref">F8-frontend.md §2.2 · PolicyDetailView.vue</span>
+    </div>
+    <div class="window" id="w2">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/policies/1</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item"><span class="ic">▣</span> Groups</div>
+          <div class="nav-item active"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn" type="button">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <a class="detail-back" href="#screen-policy-list">◀ Quay lại danh sách</a>
+            <div class="detail-header">
+              <div>
+                <div class="id-row">
+                  <span>Security Baseline</span>
+                  <span class="badge active">active</span>
+                </div>
+                <div class="meta-row">
+                  <span>Type: <code>password</code></span>
+                </div>
+                <div class="code-block-row">
+                  <label>Cấu hình (JSON)</label>
+                  <button class="btn btn-secondary btn-sm" type="button" onclick="this.textContent='Đã copy'; setTimeout(()=>{this.textContent='Copy'}, 1400)">Copy</button>
+                </div>
+                <pre class="code-block">{
+  "min_length": 12,
+  "require_symbol": true,
+  "require_number": true
+}</pre>
+              </div>
+              <button class="btn btn-secondary" type="button" style="flex: none">Sửa</button>
+            </div>
+
+            <div class="tabs">
+              <button class="tab-item active js-tab" data-tab="tab-group" type="button">Đang gán cho Group (2)</button>
+              <button class="tab-item js-tab" data-tab="tab-device" type="button">Đang gán cho Device (0)</button>
+            </div>
+
+            <div class="tab-panel active" id="tab-group">
+              <div class="list-head">
+                <span></span>
+                <button class="btn btn-primary" type="button">Gán thêm cho Group</button>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Name</th><th></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>Sales Laptops</td>
+                      <td style="text-align: right"><button class="btn btn-secondary btn-sm" type="button">Gỡ</button></td>
+                    </tr>
+                    <tr>
+                      <td>Engineering Desktops</td>
+                      <td style="text-align: right"><button class="btn btn-secondary btn-sm" type="button">Gỡ</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="tab-device">
+              <div class="list-head">
+                <span></span>
+                <button class="btn btn-primary" type="button">Gán thêm cho Device</button>
+              </div>
+              <div class="placeholder-box">
+                <span class="ic">▣</span>
+                <strong>Chưa gán trực tiếp cho Device nào.</strong>
+              </div>
+            </div>
+
+            <p class="demo-hint">Bấm thật được: chuyển tab. Tab Device minh họa A24 (EmptyState riêng từng tab) — trong app thật, tab này chỉ fetch dữ liệu ở lần click đầu tiên (lazy load, SoT §4-D).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Nếu Policy này <code>inactive</code>, cả 2 nút "Gán thêm cho Group/Device" disable kèm tooltip "Policy không active, không thể gán." (A25) — không demo riêng ở đây, xem badge "inactive" của "Old WiFi" ở Screen 1 để hình dung trạng thái nguồn.</p>
+      <p class="note">Nút "Gỡ" ở mỗi dòng mở <code>ConfirmModal</code> thật trong app (không phải inline như tab Thành viên của Group Detail) — bỏ qua demo modal ở đây vì đã demo đủ ở F5/F6.</p>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 3 — Group Detail tab Policies + AsyncJobBanner ============ -->
+  <section class="screen" id="screen-group-detail">
+    <div class="screen-label">
+      <h2>3. Group Detail — tab Policies, <code>AsyncJobBanner</code> đang "running"</h2>
+      <span class="ref">F8-frontend.md §2.3/§2.4 · GroupDetailView.vue, AsyncJobBanner.vue</span>
+    </div>
+    <div class="window" id="w3">
+      <div class="chrome"><div class="dots"><span></span><span></span><span></span></div><div class="addr">localhost:5173/groups/7</div></div>
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand"><span class="mark">DC</span><span class="name">Device Console</span></div>
+          <div class="nav-item"><span class="ic">▣</span> Devices</div>
+          <div class="nav-item active"><span class="ic">▣</span> Groups</div>
+          <div class="nav-item"><span class="ic">▢</span> Policies</div>
+        </aside>
+        <div class="shell-main">
+          <div class="topbar"><span class="org-pill"><span class="ic">◆</span> Acme Inc.</span><button class="user-btn" type="button">admin@acme.example ▾</button></div>
+          <div class="shell-content">
+            <a class="detail-back" href="#screen-group-detail">◀ Quay lại danh sách</a>
+            <div class="detail-header">
+              <div>
+                <div class="id-row"><span>Sales Laptops</span></div>
+                <div class="meta-row"><span>Toàn bộ laptop phòng Sales</span></div>
+              </div>
+              <div style="display: flex; gap: 8px; flex: none">
+                <button class="btn btn-secondary" type="button">Sửa</button>
+                <button class="btn btn-secondary" type="button">Xóa</button>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <button class="tab-item js-tab" data-tab="tab-members" type="button">Thành viên (8,420)</button>
+              <button class="tab-item active js-tab" data-tab="tab-policies" type="button">Policies</button>
+            </div>
+
+            <div class="tab-panel" id="tab-members">
+              <div class="placeholder-box"><span class="ic">▣</span><strong>(Tab Thành viên — không đổi so với F6, không lặp lại demo ở đây)</strong></div>
+            </div>
+
+            <div class="tab-panel active" id="tab-policies">
+              <div class="list-head">
+                <span></span>
+                <button class="btn btn-primary" type="button">+ Gán policy</button>
+              </div>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead><tr><th>Name</th><th>Type</th><th>Status</th><th></th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>Device Lock Strict</td>
+                      <td class="mono">device_lock</td>
+                      <td><span class="badge active">active</span></td>
+                      <td style="text-align: right"><button class="btn btn-secondary btn-sm" type="button">Gỡ</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="demo-hint">"Security Baseline" đang được gán (job bên dưới còn "running") — sẽ xuất hiện thêm 1 dòng ở bảng này ngay khi job chuyển "done" (F8-frontend.md §2.4: refetch tự động khi tab đang mở).</p>
+            </div>
+
+            <!-- AsyncJobBanner — trong app thật là position:fixed toàn cục
+                 (mount 1 lần ở AppShell.vue, §2.3), ghim ở đây trong khung
+                 mock để minh hoạ đúng vị trí "góc dưới màn hình". -->
+            <div class="job-banner-stack">
+              <div class="job-banner status-running" id="job-banner-demo">
+                <div class="job-banner-head"><span class="spinner" aria-hidden="true"></span><span>Đang gán policy "Security Baseline"</span></div>
+                <div>Đang gán cho <strong>8,420</strong> thiết bị trong group "Sales Laptops"...</div>
+                <div class="job-banner-caption">status: running · processed_count cosmetic (F8-api.md §4.1) — không progress bar %</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <p class="note">Bấm nút phía dưới để xem 2 biến thể khác của banner (không phải trong <code>.window</code> — chỉ minh họa nội dung/màu).</p>
+      <div style="display: flex; gap: 8px; margin-top: 4px">
+        <button class="btn btn-secondary btn-sm" type="button" id="show-done">Xem biến thể "done"</button>
+        <button class="btn btn-secondary btn-sm" type="button" id="show-failed">Xem biến thể "failed" (Group đã bị xóa)</button>
+        <button class="btn btn-secondary btn-sm" type="button" id="show-running">Về lại "running"</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Nguồn: <code>docs/design/F8-frontend.md</code>, <code>UI_UX_design.md</code> §6.2/§6.3/§7.1/§7.2</span>
+    <span>Chưa nối API thật</span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    function closeMenus(scope) {
+      scope.querySelectorAll('.dropdown-menu.open').forEach(function (m) { m.classList.remove('open'); });
+    }
+
+    // ---------- Screen 1: menu ⋯ + "Xem chi tiết" cuộn tới Screen 2 ----------
+    var w1 = document.getElementById('w1');
+    if (w1) {
+      w1.addEventListener('click', function (event) {
+        var trigger = event.target.closest('.js-menu');
+        if (trigger) {
+          var menu = trigger.parentElement.querySelector('.dropdown-menu');
+          var wasOpen = menu.classList.contains('open');
+          closeMenus(w1);
+          if (!wasOpen) menu.classList.add('open');
+          return;
+        }
+        if (event.target.closest('.js-goto-detail')) {
+          document.getElementById('screen-policy-detail').scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+        closeMenus(w1);
+      });
+    }
+
+    // ---------- Screen 2 & 3: tab switching (generic) ----------
+    document.querySelectorAll('.js-tab').forEach(function (tabBtn) {
+      tabBtn.addEventListener('click', function () {
+        var tabsRow = tabBtn.closest('.tabs');
+        var panelsScope = tabsRow.parentElement;
+        tabsRow.querySelectorAll('.tab-item').forEach(function (t) { t.classList.remove('active'); });
+        tabBtn.classList.add('active');
+        panelsScope.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+        var target = panelsScope.querySelector('#' + tabBtn.getAttribute('data-tab'));
+        if (target) target.classList.add('active');
+      });
+    });
+
+    // ---------- Screen 3: AsyncJobBanner variant switcher ----------
+    var banner = document.getElementById('job-banner-demo');
+    function setRunning() {
+      banner.className = 'job-banner status-running';
+      banner.innerHTML =
+        '<div class="job-banner-head"><span class="spinner" aria-hidden="true"></span><span>Đang gán policy "Security Baseline"</span></div>' +
+        '<div>Đang gán cho <strong>8,420</strong> thiết bị trong group "Sales Laptops"...</div>' +
+        '<div class="job-banner-caption">status: running · processed_count cosmetic — không progress bar %</div>';
+    }
+    function setDone() {
+      banner.className = 'job-banner status-done';
+      banner.innerHTML =
+        '<div class="job-banner-head"><span aria-hidden="true">✅</span><span>Đã gán policy "Security Baseline"</span></div>' +
+        '<div>Đã gán cho <strong>8,420</strong> thiết bị trong group "Sales Laptops".</div>' +
+        '<div class="job-banner-actions"><button class="btn btn-secondary btn-sm" type="button" onclick="this.closest(\'.job-banner\').remove()">Đóng</button></div>' +
+        '<div class="job-banner-caption">Tự ẩn sau 4s nếu không bấm gì</div>';
+    }
+    function setFailed() {
+      banner.className = 'job-banner status-failed';
+      banner.innerHTML =
+        '<div class="job-banner-head"><span aria-hidden="true">⚠</span><span>Gán policy "Security Baseline" thất bại</span></div>' +
+        '<div>Group "(group đã bị xóa)" — không thể thử lại.</div>' +
+        '<div class="job-banner-caption">error_message: "Group đã bị xóa"</div>' +
+        '<div class="job-banner-actions"><button class="btn btn-secondary btn-sm" type="button" onclick="this.closest(\'.job-banner\').remove()">Đóng</button></div>';
+    }
+    document.getElementById('show-done').addEventListener('click', setDone);
+    document.getElementById('show-failed').addEventListener('click', setFailed);
+    document.getElementById('show-running').addEventListener('click', setRunning);
+  })();
+</script>

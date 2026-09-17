@@ -53,6 +53,12 @@ Rails.application.configure do
   # Highlight code that enqueued background job in logs.
   config.active_job.verbose_enqueue_logs = true
 
+  # F8 — Solid Queue installer only writes this line into production.rb
+  # (docs/design/F8-db.md §2.1 mục 3, plan T1); a dev worker process
+  # (`bin/jobs`, run as the `worker` service in docker-compose.yml) is
+  # required for GroupPolicyAssignmentJob to actually execute in dev/seed.
+  config.active_job.queue_adapter = :solid_queue
+
   # Highlight code that triggered redirect in logs.
   config.action_dispatch.verbose_redirect_logs = true
 

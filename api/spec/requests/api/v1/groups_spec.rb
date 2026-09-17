@@ -1026,6 +1026,59 @@ RSpec.describe "DELETE /api/v1/groups/:id", type: :request do
     end
   end
 
+  # F8 — SoT A10/A17: deleting a Group that has policy_assignments AND a
+  # pending/running policy_assignment_job at the same time, through the
+  # SAME #destroy this file has exercised since F5 (GroupsController is not
+  # touched by F8 at all — docs/plan/F8-policy-assignment.md T30). Proves the
+  # model-level behaviour already covered by spec/models/group_spec.rb also
+  # holds end-to-end through the real HTTP endpoint.
+  describe "xóa Group đang có Policy gán + job pending/running (S12, S17, A18, A19)" do
+    it "deletes the group, its policy_assignments, and fails any pending/running job — Policy/Device survive" do
+      group = create(:group, organization: organization)
+      device = create(:device, organization: organization)
+      policy = create(:policy, organization: organization)
+      group_assignment = create(:policy_assignment, :for_group, organization: organization, policy: policy, group: group)
+      device_assignment = create(:policy_assignment, :for_device, organization: organization, policy: policy, device: device)
+      pending_job = create(:policy_assignment_job, :pending, organization: organization, policy: policy, group: group)
+      running_job = create(:policy_assignment_job, :running, organization: organization, policy: policy, group: group)
+      done_job = create(:policy_assignment_job, :done, organization: organization, policy: policy, group: group)
+
+      delete_group(group.id)
+
+      expect(response).to have_http_status(:no_content)
+      expect(Group.exists?(group.id)).to be(false)
+      expect(PolicyAssignment.exists?(group_assignment.id)).to be(false)
+      expect(PolicyAssignment.exists?(device_assignment.id)).to be(true)
+
+      expect(pending_job.reload.status).to eq("failed")
+      expect(pending_job.group_id).to be_nil
+      expect(pending_job.error_message).to eq(PolicyAssignmentJob::GROUP_DELETED_MESSAGE)
+
+      expect(running_job.reload.status).to eq("failed")
+      expect(running_job.group_id).to be_nil
+
+      # An already-finished job's status is left alone — only group_id is
+      # nullified (docs/design/F8-db.md §1c).
+      expect(done_job.reload.status).to eq("done")
+      expect(done_job.group_id).to be_nil
+
+      expect(Policy.exists?(policy.id)).to be(true)
+      expect(Device.exists?(device.id)).to be(true)
+    end
+
+    it "still returns 200 with status: failed when polling a job whose Group has just been deleted" do
+      group = create(:group, organization: organization)
+      policy = create(:policy, organization: organization)
+      job = create(:policy_assignment_job, :pending, organization: organization, policy: policy, group: group)
+
+      delete_group(group.id)
+      get "/api/v1/policy_assignment_jobs/#{job.id}", headers: { "Authorization" => "Bearer #{token_for(user)}" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["policy_assignment_job"]).to include("status" => "failed", "group" => nil)
+    end
+  end
+
   describe "repeat deletes (A12/A24)" do
     it "returns 404 on the second DELETE of the same id" do
       group = create(:group, organization: organization)

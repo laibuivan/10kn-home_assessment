@@ -180,3 +180,99 @@ GLOBEX_POLICIES.each do |name, type, configuration, status|
 end
 
 puts "Seeded #{Policy.count} policies (#{acme.policies.count} for #{acme.name}, #{globex.policies.count} for #{globex.name})."
+
+# ---------------------------------------------------------------------------
+# Policy assignments (F8) — a few Group + a few direct-Device assignments per
+# org so the "Số nơi đang gán" column (Policy List) and the 2 Policy Detail
+# tabs have something real to show. Idempotent like everything above:
+# find_or_create_by! on (policy, group)/(policy, device) is exactly the pair
+# the composite partial unique indexes enforce.
+def upsert_group_assignment!(organization:, policy:, group:)
+  PolicyAssignment.find_or_create_by!(organization: organization, policy: policy, group: group)
+end
+
+def upsert_device_assignment!(organization:, policy:, device:)
+  PolicyAssignment.find_or_create_by!(organization: organization, policy: policy, device: device)
+end
+
+acme_password_baseline = acme.policies.find_by!(name: "Password Baseline")
+acme_corp_wifi = acme.policies.find_by!(name: "Corp WiFi")
+globex_corp_wifi = globex.policies.find_by!(name: "Corp WiFi")
+globex_screen_lock = globex.policies.find_by!(name: "Screen Lock")
+
+upsert_group_assignment!(organization: acme, policy: acme_password_baseline, group: acme.groups.find_by!(name: "Sales Team"))
+upsert_group_assignment!(organization: acme, policy: acme_password_baseline, group: acme.groups.find_by!(name: "Engineering"))
+upsert_group_assignment!(organization: acme, policy: acme_corp_wifi, group: acme.groups.find_by!(name: "Executives"))
+upsert_device_assignment!(organization: acme, policy: acme_password_baseline, device: acme.devices.find_by!(identifier: "ACME-0001"))
+upsert_device_assignment!(organization: acme, policy: acme_corp_wifi, device: acme.devices.find_by!(identifier: "ACME-0002"))
+
+upsert_group_assignment!(organization: globex, policy: globex_corp_wifi, group: globex.groups.find_by!(name: "Sales Team"))
+upsert_group_assignment!(organization: globex, policy: globex_screen_lock, group: globex.groups.find_by!(name: "Support"))
+upsert_device_assignment!(organization: globex, policy: globex_corp_wifi, device: globex.devices.find_by!(identifier: "GLBX-0001"))
+
+puts "Seeded #{PolicyAssignment.count} policy assignments " \
+     "(#{acme.policy_assignments.count} for #{acme.name}, #{globex.policy_assignments.count} for #{globex.name})."
+
+# ---------------------------------------------------------------------------
+# Large Group + async job demo (F8) — proves the Solid Queue path end to
+# end: a Group with a few hundred devices, one PolicyAssignmentJob enqueued
+# for it via GroupPolicyAssignmentJob.perform_later DIRECTLY (not through
+# HTTP — this is seed data, not a request spec), the exact same 2 steps
+# GroupPolicyAssignmentsController#create wraps in one transaction. Needs
+# the `worker` service (docker-compose.yml) actually running to finish —
+# otherwise the job simply stays "pending" until it does (see README).
+#
+# 300, not 10.000 — enough to see the job take a moment without making
+# `docker compose up --build`'s first run slow (docs/plan/F8-policy-
+# assignment.md T31).
+BULK_GROUP_DEVICE_COUNT = 300
+
+def seed_bulk_group!(organization:, prefix:, policy:)
+  group = Group.find_or_create_by!(organization: organization, name: "Bulk Ops (F8 demo)") do |g|
+    g.description = "Nhóm lớn cho demo Solid Queue job (F8) — #{BULK_GROUP_DEVICE_COUNT} device."
+  end
+
+  device_ids = BULK_GROUP_DEVICE_COUNT.times.map do |i|
+    identifier = "#{prefix}-BULK-#{format('%04d', i + 1)}"
+    device = Device.find_or_create_by!(organization: organization, identifier: identifier) do |d|
+      d.name = "Bulk Device #{format('%04d', i + 1)}"
+      d.platform = :android
+      d.status = :active
+      d.os_version = "14"
+      d.last_seen_at = 1.hour.ago
+    end
+    device.id
+  end
+
+  now = Time.current
+  GroupMembership.upsert_all(
+    device_ids.map { |device_id| { group_id: group.id, device_id: device_id, created_at: now, updated_at: now } },
+    unique_by: [ :group_id, :device_id ]
+  )
+
+  # Idempotent across re-runs, same dedupe reasoning as
+  # GroupPolicyAssignmentsController#find_or_create_policy_assignment_job
+  # (OQ-5): once the assignment exists (job finished), or a job is still
+  # pending/running, don't enqueue a second one.
+  if PolicyAssignment.exists?(policy_id: policy.id, group_id: group.id)
+    puts "'#{policy.name}' already assigned to '#{group.name}' (#{organization.name}) — no job needed."
+  elsif organization.policy_assignment_jobs.where(policy_id: policy.id, group_id: group.id, status: %i[pending running]).exists?
+    puts "A job assigning '#{policy.name}' to '#{group.name}' (#{organization.name}) is already pending/running."
+  else
+    job = organization.policy_assignment_jobs.create!(
+      policy_id: policy.id,
+      group_id: group.id,
+      status: :pending,
+      total_count: group.devices.count,
+      processed_count: 0
+    )
+    GroupPolicyAssignmentJob.perform_later(job.id)
+    puts "Enqueued GroupPolicyAssignmentJob##{job.id} — '#{policy.name}' -> '#{group.name}' (#{organization.name}, " \
+         "#{job.total_count} devices)."
+  end
+
+  group
+end
+
+seed_bulk_group!(organization: acme, prefix: "ACME", policy: acme_password_baseline)
+seed_bulk_group!(organization: globex, prefix: "GLBX", policy: globex_corp_wifi)
