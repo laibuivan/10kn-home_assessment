@@ -214,6 +214,67 @@ puts "Seeded #{PolicyAssignment.count} policy assignments " \
      "(#{acme.policy_assignments.count} for #{acme.name}, #{globex.policy_assignments.count} for #{globex.name})."
 
 # ---------------------------------------------------------------------------
+# Policy resolution/conflict fixtures (F9) — every branch of the invariant in
+# CLAUDE.md §4 "Policy đang áp dụng trên Device" made visible on a real
+# Device Detail page, not just in specs. On top of the direct/group
+# assignments seeded just above:
+#
+#   - ACME-0001, type "password": direct Password Baseline + group Password
+#     Baseline (Sales Team, Engineering) + group Executive Password
+#     (Executives, different configuration) -> conflict: true, direct
+#     assignment still wins the displayed row (R2).
+#   - ACME-0002, type "password": group Password Baseline (Engineering) vs
+#     group Executive Password (Executives) — no direct assignment to mask
+#     it, so the winner is decided purely by the updated_at/id tie-break
+#     (R3/R4).
+#   - ACME-0003, type "vpn": direct Legacy VPN (inactive) + group Modern VPN
+#     (Sales Team, active) -> resolves to Modern VPN, Legacy VPN listed as a
+#     candidate with excluded_reason "inactive" (A9's sibling case — the
+#     type does NOT disappear because at least one candidate is active).
+#   - GLBX-0002, type "password": same group-vs-group conflict shape as
+#     ACME-0002, proving the resolver's conflict/tie-break logic is scoped
+#     per-Organization too, not just the direct/group split.
+link_devices_to_group!(organization: acme, group_name: "Executives", identifiers: %w[ACME-0001 ACME-0002])
+link_devices_to_group!(organization: acme, group_name: "Engineering", identifiers: %w[ACME-0002])
+
+acme_executive_password = upsert_policy!(
+  organization: acme,
+  name: "Executive Password",
+  type: "password",
+  configuration: { "min_length" => 16, "require_mfa" => true },
+  status: :active
+)
+upsert_group_assignment!(organization: acme, policy: acme_executive_password, group: acme.groups.find_by!(name: "Executives"))
+
+acme_modern_vpn = upsert_policy!(
+  organization: acme,
+  name: "Modern VPN",
+  type: "vpn",
+  configuration: { "protocol" => "wireguard" },
+  status: :active
+)
+upsert_group_assignment!(organization: acme, policy: acme_modern_vpn, group: acme.groups.find_by!(name: "Sales Team"))
+upsert_device_assignment!(
+  organization: acme,
+  policy: acme.policies.find_by!(name: "Legacy VPN"),
+  device: acme.devices.find_by!(identifier: "ACME-0003")
+)
+
+link_devices_to_group!(organization: globex, group_name: "Support", identifiers: %w[GLBX-0002])
+
+globex_sales_password = upsert_policy!(
+  organization: globex,
+  name: "Sales Password",
+  type: "password",
+  configuration: { "min_length" => 6 },
+  status: :active
+)
+upsert_group_assignment!(organization: globex, policy: globex_sales_password, group: globex.groups.find_by!(name: "Sales Team"))
+
+puts "Seeded F9 fixtures: ACME-0001 (direct wins + conflict), ACME-0002/GLBX-0002 (group tie-break + conflict), " \
+     "ACME-0003 (inactive candidate excluded)."
+
+# ---------------------------------------------------------------------------
 # Large Group + async job demo (F8) — proves the Solid Queue path end to
 # end: a Group with a few hundred devices, one PolicyAssignmentJob enqueued
 # for it via GroupPolicyAssignmentJob.perform_later DIRECTLY (not through
