@@ -1,10 +1,11 @@
 # Device Management Console
 
-Take-home assessment — see [`PRD.md`](PRD.md) for the spec and
+Take-home assessment — see [`PRD.md`](PRD.md) for the spec,
 [`CLAUDE.md`](CLAUDE.md) for how this repo is built (stack, invariants, ATDD
-workflow). This file will grow into the full setup/seed/test/walkthrough guide
-the PRD requires as features land — for now it only covers running the
-skeleton.
+workflow), [`DESIGN.md`](DESIGN.md) for the design rationale, and
+[`docs/overview.md`](docs/overview.md) for a one-page map of every feature —
+FE route ↔ API endpoint ↔ exact seed record to test it, including the 4
+policy-resolution/conflict scenarios (F9).
 
 ## Quickstart (Docker — one command)
 
@@ -29,17 +30,22 @@ reuse the build cache and the `db-data` volume, so `docker compose up` (no
 avoid clashing with anything else already running on your machine — override
 via a root `.env` (see `.env.example`) if those also collide.
 
-Run the gates inside the containers, e.g.:
+## Chạy test (1 lệnh)
+
+Với stack đã `docker compose up` sẵn (Playwright ở root repo chạy qua
+`api`/`web` thật, không mock — cần `npm install` ở root 1 lần trước đó):
 
 ```bash
-docker compose exec -e RAILS_ENV=test api bundle exec rspec
-docker compose exec api bundle exec rubocop
-docker compose exec web npm run lint
-docker compose exec web npm run test:unit
+docker compose exec -e RAILS_ENV=test api bundle exec rspec && \
+docker compose exec api bundle exec rubocop && \
+docker compose exec web npm run lint && \
+docker compose exec web npm run test:unit && \
+npm run test:e2e
 ```
 
-(`/gate` in Claude Code runs all of these plus the E2E suite once it exists —
-see `docs/sdlc.md`.)
+4 gate bắt buộc (rubocop, rspec, eslint+vitest, Playwright — xem `CLAUDE.md`
+§3) đều nằm trong lệnh trên; dừng ngay ở gate đầu tiên fail nhờ `&&`.
+(`/gate` trong Claude Code chạy đúng các bước này — xem `docs/sdlc.md`.)
 
 ## Native dev (no Docker)
 
@@ -53,29 +59,58 @@ cd api && bundle install && bin/rails db:prepare && bin/rails s
 cd web && npm install && npm run dev
 ```
 
-## What's here so far
+## What's here
 
 Built through the ATDD workflow in `docs/sdlc.md` — see `docs/backlog.md` for
-the full feature list/status. Done so far: `F0` (Organization/User, JWT auth,
-Login), `F2` (Device list — pagination + platform/status filter), `F3`
-(Device create/edit, identifier unique per Organization, retired-immutable),
-`F4` (Device detail page — info, plus the "Groups đang thuộc"/"Policy đang áp
-dụng" panels), `F5` (Group CRUD — list/create/edit/delete, org-scoped),
-`F6` (Group membership at scale — add/remove Device to/from a Group from
-either side, paginated up to 10k members per Group, idempotent bulk-add via
-`upsert_all`; the "Groups đang thuộc" panel on Device Detail is now live),
-`F7` (Policy CRUD — list/create/edit + active/inactive status toggle,
-org-scoped, `type` as a free-form combobox field, `configuration` as a
-validated JSON object). Not built yet: Policy assignment (to Group/Device)
-and the policy-resolution/conflict engine.
+the full feature list. **`F0`–`F9` đều Done** (3 gate bắt buộc xanh): auth/JWT
++ Login (`F0`), Device list/create/edit/detail (`F2`–`F4`), Group CRUD +
+membership tại scale (`F5`–`F6`), Policy CRUD + assignment (`F7`–`F8`, gán
+Group lớn chạy async qua Solid Queue), và policy-resolution/conflict engine
+(`F9`, panel "Policy đang áp dụng" trên Device Detail). Chi tiết route/API/
+seed fixture của từng feature ở [`docs/overview.md`](docs/overview.md).
 
-`bin/rails db:seed` (run automatically by `docker compose up --build` on
-first run) creates 2 Organizations ("Acme Inc.", "Globex Corp.") each with a
-login account at `admin@<org>.example` / `Password123!`, a spread of Devices
-across every platform/status combo, a few Groups, a handful of Group
-memberships linking them, and a few Policies with varied `type`/`status` —
-enough to exercise pagination, filtering, the detail pages, Group membership
-add/remove, and the Policies list/create/edit/status-toggle from the UI. The
-full 5-minute walkthrough this section owes the PRD will be written once
-Policy assignment exists too (walking through "gán policy" needs that
-feature, F8).
+### Tài khoản seed
+
+`bin/rails db:seed` (chạy tự động bởi `docker compose up --build` ở lần đầu,
+idempotent — chạy lại bao nhiêu lần cũng an toàn) tạo 2 Organization tách biệt
+hoàn toàn dữ liệu với nhau:
+
+| Organization | Email | Password | Ghi chú |
+|---|---|---|---|
+| Acme Inc. | `admin@acme.example` | `Password123!` | tài khoản chính để walkthrough |
+| Globex Corp. | `admin@globex.example` | `Password123!` | login xong thấy Device/Group/Policy hoàn toàn khác Acme — chứng minh tách Organization |
+| Acme Inc. | `shared.login@example.com` | `AcmePass123!` | cùng email tồn tại ở CẢ 2 org — chứng minh email unique theo org, không unique toàn hệ thống |
+| Globex Corp. | `shared.login@example.com` | `GlobexPass123!` | — |
+| Acme Inc. | `inactive@acme.example` | `Password123!` | `status: inactive` — login phải bị từ chối |
+
+Cùng với đó: Device trải đủ mọi platform/status (kể cả `retired` bất biến và
+device chưa từng check-in), Group (kể cả 1 group rỗng và 1 group ~300 device
+để demo job async), Policy đủ `active`/`inactive`, và — quan trọng nhất — 4
+kịch bản dựng sẵn để tự tay kiểm chứng engine tính conflict của `F9` (direct
+thắng group, tie-break theo `updated_at`, candidate inactive bị loại, cách ly
+giữa 2 Organization). Danh sách đầy đủ + cách test từng cái ở
+[`docs/overview.md`](docs/overview.md).
+
+### Walkthrough 5 phút (gán Policy + xem Device detail)
+
+1. `docker compose up --build`, mở <http://localhost:5173>, đăng nhập
+   `admin@acme.example` / `Password123!`.
+2. **Devices** → phân trang/lọc theo platform, status → click vào 1 device
+   (vd. `ACME-0001`) → Device Detail hiện "Group đang thuộc" và **"Policy
+   đang áp dụng"** — device này có sẵn xung đột giữa policy gán trực tiếp và
+   policy qua Group (banner "Đã tự động chọn policy ưu tiên cao hơn..." ở đầu
+   bảng, icon ⚠ cạnh dòng `password`) — bấm "Xem tất cả nguồn" để thấy từng
+   policy ứng viên, cái nào thắng và vì sao.
+3. **Groups** → click **"Bulk Ops (F8 demo)"** (~300 device, seed sẵn) → tab
+   Policy → gán thêm 1 Policy khác (vd. `Corp WiFi`) cho group này → banner
+   góc dưới phải hiện ngay trạng thái `pending` → `running` → `done` (poll
+   mỗi 2s) — không phải bấm xong không biết gì. Muốn thấy nhánh `pending`
+   kẹt lại: `docker compose stop worker` trước khi gán, gán xong quan sát
+   banner đứng yên ở `pending`, rồi `docker compose start worker` để job
+   chạy tiếp tới `done`.
+4. **Policies** → mở `Legacy VPN` (`status: inactive`) → nút "Gán cho
+   Group"/"Gán cho Device" bị disable ngay ở UI (Policy inactive không được
+   gán — validate cả 2 tầng, UI lẫn service layer bên dưới). Mở 1 Policy
+   `active` khác để thấy luồng gán thật hoạt động bình thường.
+5. Đăng xuất, đăng nhập lại bằng `admin@globex.example` — toàn bộ
+   Device/Group/Policy khác hẳn Acme, chứng minh tách Organization tuyệt đối.

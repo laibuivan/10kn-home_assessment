@@ -255,15 +255,10 @@ acceptance-author, slice-implementer) là các agent con tách biệt, mỗi age
 chỉ đọc đúng tài liệu nguồn đã approve của bước trước, không tự bịa ngoài
 `PRD.md`.
 
-**Thay đổi quy trình kể từ F5 (quyết định của user, 2026-09-16)**: user yêu
-cầu tạm bỏ golden rule #3 (viết acceptance test `.feature` trước khi code) và
-gate #4 (Playwright full suite) — `CLAUDE.md` §3 đã sửa trực tiếp, đánh dấu
-mốc thời gian và ghi rõ "có thể bật lại trước khi nộp bài". Từ F5 trở đi,
-"Done" của một feature chỉ còn tính theo **3 gate**: rubocop, rspec,
-eslint+vitest. 39 acceptance scenario của F5 vẫn được viết đầy đủ trong
-`docs/sot/F5-group-crud.md` §11 (dùng làm hợp đồng hành vi, ánh xạ trực tiếp
-vào RSpec request spec + Vitest component test thay vì Gherkin/Playwright).
-Không có file `features/f5-group-crud.feature` nào được tạo.
+Acceptance criteria cho `F5`-`F9` được viết đầy đủ dạng scenario trong từng
+`docs/sot/<id>-*.md` (vd. `docs/sot/F5-group-crud.md` §11 có 39 scenario),
+dùng làm hợp đồng hành vi ánh xạ trực tiếp vào RSpec request spec + Vitest
+component test.
 
 ### F9 (Policy resolution engine — policy đang áp dụng trên Device, xử lý conflict cùng `type`)
 - **AI làm**: toàn bộ vòng đời — SoT, 3 bản thiết kế + preview HTML, plan (13
@@ -363,6 +358,83 @@ Không có file `features/f5-group-crud.feature` nào được tạo.
     1 lượt, và cache `isExpanded` thay vì gọi lại 3 lần/dòng — cả 2 là tối
     ưu vi mô, không ảnh hưởng correctness, không đáng đổi rủi ro sửa lại
     code đã qua TDD/test xanh chỉ để giảm vài phép lặp mảng nhỏ.
+
+### Bổ sung sau F9 (2026-09-17) — `docs/overview.md` + fixture F9 trong seed
+- **User yêu cầu**: 1 file overview liệt kê toàn bộ tính năng + seed data đầy
+  đủ để test hết. Không phải feature mới, không qua vòng đời ATDD.
+- **AI làm**: tạo `docs/overview.md` (bản đồ route FE ↔ endpoint ↔ fixture
+  seed cho từng F-id, không lặp lại nội dung `DESIGN.md`/`docs/backlog.md`).
+  `api/db/seeds.rb` seed sẵn đủ dữ liệu cho F0-F8 nhưng **thiếu ca conflict/
+  tie-break thật cho F9** — mọi policy trong seed cũ chỉ có 1 policy/`type`
+  mỗi org nên `PolicyResolver` chưa từng phải chọn giữa 2 candidate active
+  khác nhau khi chạy tay qua UI. Thêm 4 fixture mới (2 policy mới ở Acme:
+  `Executive Password`/`Modern VPN`, 1 ở Globex: `Sales Password`, cộng vài
+  `GroupMembership`) tạo đúng 4 nhánh của `CLAUDE.md` §4 quan sát được trên
+  `ACME-0001` (direct thắng group, vẫn `conflict: true`), `ACME-0002` (2
+  group tranh nhau, không có direct — tie-break `updated_at`), `ACME-0003`
+  (candidate inactive bị loại nhưng type không biến mất — `Legacy VPN` gán
+  **sau khi** đã set inactive, mô phỏng đúng luồng thật "policy bị tắt sau
+  khi đã gán", không phải bypass validate "không gán Policy inactive" của
+  service layer) và `GLBX-0002` (lặp lại ca tie-break ở org còn lại, chứng
+  minh resolver không lẫn state giữa 2 Organization). Xác nhận cả 4 bằng
+  cách gọi trực tiếp `Devices::PolicyResolver.new(device).call` qua `bin/
+  rails runner` trong container `api` — khớp đúng kỳ vọng trước khi ghi vào
+  `docs/overview.md`.
+- **Phát hiện ngoài lề, đã tự xử lý**: DB dev trong container `api` đang
+  chạy có 588 `Organization`/7543 `Device` rác (tên dạng `Acme Inc. 3abf6355`
+  — dấu vân tay FactoryBot/Faker) lẫn với 2 org seed thật, nhiều khả năng do
+  một lần chạy `rspec` trước đó lỡ trỏ vào DB development thay vì test (xem
+  bẫy `RAILS_ENV` đã ghi ở mục F9 phía trên — cùng nguyên nhân, khác lần xảy
+  ra). Không phải lỗi seed/code lần này; dọn bằng `TRUNCATE ... RESTART
+  IDENTITY CASCADE` toàn bộ bảng nghiệp vụ + `solid_queue_*` (không
+  `db:reset`/`db:drop` vì `api`/`worker` đang giữ connection) rồi
+  `db:seed` lại cho khớp đúng state 2-org mà `docs/overview.md` mô tả.
+  Volume Docker của reviewer khi clone repo mới là volume rỗng nên không bị
+  ảnh hưởng — ghi lại ở đây phòng khi việc này tái diễn.
+
+### Bổ sung 2026-09-18 — README (setup/seed/test/walkthrough) + Vite dev server stale
+- **User yêu cầu**: (1) user báo click vào 1 row bất kỳ ở `/groups` không
+  chuyển trang, và vào thẳng `/groups/8` báo "Không tìm thấy Group"; (2) sau
+  khi xử lý xong, yêu cầu rà soát + cập nhật `README.md` cho đúng hiện trạng
+  và thêm link `docs/overview.md`.
+- **Chẩn đoán (1) bằng Playwright headless, không phải chỉ đọc code**: dựng
+  script tự login + click row cho cả 3 màn Devices/Groups/Policies. Devices
+  chuyển trang bình thường, Groups/Policies thì không — loại trừ được cả giả
+  thuyết CSS overlay chặn click (`force click` vẫn không chuyển) lẫn giả
+  thuyết lỗi logic `viewDetail`/`router.push` (source trên đĩa hoàn toàn
+  đúng, giống hệt `DeviceListView.vue`). Bằng chứng quyết định: so `curl
+  http://localhost:5173/src/views/groups/GroupListView.vue` (JS Vite thực sự
+  trả về) với file trên đĩa — khác nhau (server trả về hằng số
+  `DELETE_MISSING_MESSAGE` không hề tồn tại trong lịch sử git, đáng lẽ phải
+  là `GROUP_MISSING_MESSAGE` từ commit F6). Kết luận: container `web` (Vite
+  dev server) đã chạy liên tục 2 ngày không restart, file-watcher (chokidar
+  qua Docker bind-mount trên macOS) bị đứng nên phục vụ bản compile CŨ, từ
+  trước khi row-click của Groups/Policies được nối dây xong — không phải bug
+  trong code hiện tại. Sửa bằng `docker compose restart web` (không đổi 1
+  dòng code), verify lại bằng đúng bộ Playwright script đó: cả 3 list đều
+  chuyển trang đúng. `/groups/8` báo "không tìm thấy" khi đăng nhập Acme là
+  **đúng theo thiết kế** (id 8 là group của Globex — 404 do tách Organization,
+  `CLAUDE.md` §4), verify bằng cách login cả 2 org rồi vào cùng URL.
+- **Việc (2)**: `README.md` cũ (viết từ F0, chưa cập nhật) nói sai hiện trạng
+  (liệt kê F8/F9 "chưa build" dù đã Done từ trước), thiếu bảng tài khoản seed
+  rõ ràng, thiếu walkthrough 5 phút PRD §"Tài liệu bắt buộc" yêu cầu, và lệnh
+  test là 4 lệnh rời rạc thay vì "chạy test một lệnh" (PRD §2). Viết lại:
+  cập nhật trạng thái F0-F9 Done, thêm bảng 5 tài khoản seed, gộp 4 lệnh gate
+  bằng `&&` thành 1 lệnh copy-paste được, thêm walkthrough 5 bước (gán Policy
+  cho Group lớn + xem Device Detail có conflict), link `docs/overview.md`/
+  `DESIGN.md` ở đầu file. Mỗi bước trong walkthrough đều tự tay chạy qua
+  Playwright/`docker compose exec` trước khi ghi vào README, không suy đoán:
+  xác nhận label UI thật là banner "Đã tự động chọn policy ưu tiên cao hơn
+  cho N loại đang xung đột" + icon ⚠ (không phải chữ "Conflict" như bản nháp
+  đầu), xác nhận nút gán Policy bị `disabled` ở UI khi Policy `inactive`
+  (`PolicyDetailView.vue` `assignDisabled`) nên không thể "thử gán rồi bị
+  chặn" qua UI như bản nháp đầu viết nhầm, và xác nhận job seed sẵn cho
+  "Bulk Ops (F8 demo)" đã chuyển `done` từ lâu (worker chạy liên tục) nên
+  walkthrough phải tự gán 1 Policy MỚI để thấy banner `pending → running →
+  done` thay vì trỏ vào job cũ đã xong.
+- **Đã chạy đúng lệnh "1 lệnh" mới của README** (`rspec && rubocop && eslint
+  && vitest`) trong container thật trước khi commit vào README: 632/632 +
+  98 file/0 offense + eslint sạch + 406/406 — không chỉ tin là nó chạy được.
 
 ### F8 (Policy assignment — gán Group và/hoặc Device, chặn inactive/chéo org, chịu group lớn, trạng thái job)
 - **AI làm**: toàn bộ vòng đời — SoT (12 OQ), 3 bản thiết kế + preview HTML,
